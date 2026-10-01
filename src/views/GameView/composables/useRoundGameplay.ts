@@ -1,4 +1,5 @@
 import { safePush, safeReplace } from '@/composables/usePageGuard'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { AI_MAX_RESPONSE_TIME_MS, ANSWER_TIME_SECONDS } from '@/config/game'
 import { ANSWER_REVEAL_DURATION_MS, TIMER_TICK_MS } from '@/config/timing'
 import { findRound, updateRoundSubmission } from '@/services/roundService'
@@ -10,7 +11,7 @@ import { useUserStore } from '@/stores/user'
 import { calculateCumulativeScore, calculateFallbackScore, cosineSimilarity } from '@/utils/helpers'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect, type Ref } from 'vue'
+import { computed, onMounted, ref, watch, watchEffect, type Ref } from 'vue'
 
 interface UseRoundGameplayOptions {
   currentRound: number
@@ -24,6 +25,13 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
   const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
+  const {
+    cancelInterval,
+    isActive,
+    nextAnimationFrame,
+    scheduleInterval,
+    scheduleTimeout,
+  } = useDisposableTimers()
   const { opponentInfo } = storeToRefs(userStore)
   const { myRoundList, opponentRoundList, phantomRoundList } = storeToRefs(roundStore)
   let timer: ReturnType<typeof setInterval> | null = null
@@ -51,32 +59,29 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
   /** 停止本回合倒數計時器。 */
   function stopTimer() {
     if (timer === null) return
-    clearInterval(timer)
+    cancelInterval(timer)
     timer = null
   }
 
   /** 以逐格動畫把畫面上的分數由目前值更新到最新累積分數。 */
-  function animateScoreTransition(
+  async function animateScoreTransition(
     thisRoundScoreRef: Ref<number>,
     thisRoundScore: number,
     cumulativeScore: number,
   ): Promise<void> {
-    return new Promise((resolve) => {
-      const step = () => {
-        const diff = cumulativeScore - thisRoundScoreRef.value
+    thisRoundScoreRef.value = thisRoundScore
 
-        if (Math.abs(diff) > 0) {
-          thisRoundScoreRef.value += Math.sign(diff) * Math.max(1, Math.floor(Math.abs(diff) / 10))
-          requestAnimationFrame(step)
-        } else {
-          thisRoundScoreRef.value = cumulativeScore
-          resolve()
-        }
-      }
+    while (isActive()) {
+      const frameCompleted = await nextAnimationFrame()
+      if (!frameCompleted) return
 
-      thisRoundScoreRef.value = thisRoundScore
-      requestAnimationFrame(step)
-    })
+      const diff = cumulativeScore - thisRoundScoreRef.value
+      if (Math.abs(diff) === 0) break
+
+      thisRoundScoreRef.value += Math.sign(diff) * Math.max(1, Math.floor(Math.abs(diff) / 10))
+    }
+
+    if (isActive()) thisRoundScoreRef.value = cumulativeScore
   }
 
   function calcBonus(timeTakenMs: number) {
@@ -111,7 +116,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
         submittedAt,
       })
     } catch (error) {
-      safeReplace(`/`)
+      if (isActive()) safeReplace(`/`)
       // console.error('[updateMyRound] failed:', error)
       throw error
     }
@@ -120,6 +125,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
   /** 時間結束仍未收到對手提交時主動查詢；沒有資料則補上零分空回合。 */
   async function getOpponentRoundData() {
     const opponentRoundData = await findRound(matchId, opponentInfo.value.opponentId, currentRound)
+    if (!isActive()) return
 
     if (opponentRoundData) {
       roundStore.updateOpponentCurrentRoundData(opponentRoundData)
@@ -154,7 +160,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
       if (data?.vector1 && data.vector2) {
         return Math.round(cosineSimilarity(data.vector1, data.vector2))
       }
-    } catch (error) {
+    } catch {
       // console.error('[getVector] failed:', error)
     } finally {
       isWaitingForScore.value = false
@@ -170,6 +176,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
     const now = Date.now()
     const timeTakenMs = gameStartTime.value ? now - gameStartTime.value : 0
     const newScore = await getVector(inputValue.value)
+    if (!isActive()) return
 
     roundStore.updateMyCurrentRoundData({
       input: inputValue.value,
@@ -187,7 +194,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
       const phantomData = phantomRoundList.value[currentRound - 1]
       const delay = phantomData?.timeTakenMs ?? AI_MAX_RESPONSE_TIME_MS
 
-      setTimeout(() => {
+      scheduleTimeout(() => {
         roundStore.updateOpponentCurrentRoundData({
           ...phantomData,
           submittedAt: new Date().toISOString(),
@@ -207,7 +214,8 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
         submittedAt: new Date(Date.now() + aiTimeTakenMs).toISOString(),
       }
 
-      setTimeout(() => roundStore.updateOpponentCurrentRoundData(aiRound), aiTimeTakenMs)
+      if (!isActive()) return
+      scheduleTimeout(() => roundStore.updateOpponentCurrentRoundData(aiRound), aiTimeTakenMs)
     }
   }
 
@@ -221,7 +229,7 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
     )
     gameStartTime.value = Date.now()
 
-    timer = setInterval(async () => {
+    timer = scheduleInterval(async () => {
       if (remainingTime.value > 0) {
         remainingTime.value--
         if (remainingTime.value !== 0) return
@@ -252,8 +260,9 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
     stopTimer()
     const shouldFetchOpponentRound = mySubmitted && !opponentHasSubmitted && timeOver
 
-    setTimeout(async () => {
+    scheduleTimeout(async () => {
       if (shouldFetchOpponentRound) await getOpponentRoundData()
+      if (!isActive()) return
       showAnswer.value = true
 
       await Promise.all([
@@ -269,13 +278,13 @@ export function useRoundGameplay({ currentRound, delayTimeMs, matchId }: UseRoun
         ),
       ])
 
-      setTimeout(() => safePush(`/round-result/${matchId}`), ANSWER_REVEAL_DURATION_MS)
+      if (!isActive()) return
+      scheduleTimeout(() => safePush(`/round-result/${matchId}`), ANSWER_REVEAL_DURATION_MS)
     }, delayTimeMs)
   })
 
   onMounted(scheduleSimulatedOpponent)
   onMounted(startRoundTimer)
-  onBeforeUnmount(stopTimer)
 
   return {
     handleSubmit,

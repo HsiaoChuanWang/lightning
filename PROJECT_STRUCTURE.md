@@ -18,6 +18,7 @@ Lightning/
 │  │  ├─ common/                             # 跨頁面共用的業務元件
 │  │  └─ ui-components/                      # Button、Input、Modal 等基礎 UI 元件
 │  ├─ composables/
+│  │  ├─ useDisposableTimers.ts              # 統一清理 timer、動畫影格與可取消 delay
 │  │  └─ usePageGuard.ts                     # 跨頁面共用的路由保護與安全導頁流程
 │  ├─ config/
 │  │  ├─ app.ts                              # 版本等應用程式設定

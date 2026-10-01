@@ -1,4 +1,5 @@
 import { REMATCH_RESULT_DELAY_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { supabase } from '@/lib/supabaseClient'
 import { toRevengeInfo } from '@/mappers/revengeMapper'
 import { useGlobalStore } from '@/stores/global'
@@ -11,6 +12,7 @@ import { onBeforeUnmount, onMounted } from 'vue'
 export function useRevengeRealtime(matchId: string | string[]) {
   const globalStore = useGlobalStore()
   const revengeStore = useRevengeStore()
+  const { scheduleTimeout } = useDisposableTimers()
   let insertRevengeChannel: RealtimeChannel | null = null
   let updateRevengeChannel: RealtimeChannel | null = null
 
@@ -59,7 +61,7 @@ export function useRevengeRealtime(matchId: string | string[]) {
           }
 
           if (response.status === 'matched') {
-            setTimeout(() => {
+            scheduleTimeout(() => {
               allowNextNavigationOnce()
               safePush(`/start-challenge/${response.revenge_id}`)
               globalStore.setIsPlayAgainModalOpen(false)
@@ -67,7 +69,7 @@ export function useRevengeRealtime(matchId: string | string[]) {
           }
 
           if (response.status === 'rejected' || response.status === 'canceled') {
-            setTimeout(() => {
+            scheduleTimeout(() => {
               globalStore.setIsPlayAgainModalOpen(false)
               allowNextNavigationOnce()
               safePush(`/`)

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { usePageGuard } from '@/composables/usePageGuard'
 import { ENTRY_BANNER_DURATION_MS, ENTRY_BANNER_TRANSITION_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { useGlobalStore } from '@/stores/global'
 import { onMounted, ref } from 'vue'
 
 const emit = defineEmits(['finished'])
+const { scheduleTimeout } = useDisposableTimers()
 
 const globalStore = useGlobalStore()
 
@@ -20,15 +22,15 @@ const showBanners = ref(false)
 onMounted(() => {
   showBanners.value = true
   // 設定 5 秒後將灰色遮罩關閉
-  setTimeout(() => {
+  scheduleTimeout(() => {
     isGrayOverlayActive.value = false
   }, ENTRY_BANNER_TRANSITION_MS)
 
-  setTimeout(() => {
+  scheduleTimeout(() => {
     showBanners.value = false
   }, ENTRY_BANNER_TRANSITION_MS)
 
-  setTimeout(() => {
+  scheduleTimeout(() => {
     emit('finished')
   }, ENTRY_BANNER_DURATION_MS)
 })

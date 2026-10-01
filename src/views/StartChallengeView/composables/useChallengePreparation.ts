@@ -1,4 +1,5 @@
 import { safePush, usePageGuard } from '@/composables/usePageGuard'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { START_CHALLENGE_DURATION_MS } from '@/config/timing'
 import { toOpponentInfo, toUserInfo } from '@/mappers/userMapper'
 import { updateMatchStatus } from '@/services/matchService'
@@ -27,6 +28,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
   const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const revengeStore = useRevengeStore()
+  const { cancelTimeout, scheduleTimeout } = useDisposableTimers()
   const { userInfo, opponentInfo, myCurrentId } = storeToRefs(userStore)
   const { matchData } = storeToRefs(matchStore)
   const imageUrlList = ref<string[]>([])
@@ -55,7 +57,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
 
     try {
       await updateMatchStatus(matchId, 'in_progress')
-    } catch (error) {
+    } catch {
       // console.error('[markMatchInProgress] failed:', error)
     }
   }
@@ -80,7 +82,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
           totalMatches: 0,
         })
       }
-    } catch (error) {
+    } catch {
       // console.error('[loadUsersData] failed:', error)
     }
   }
@@ -89,7 +91,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
     try {
       const answers = await fetchImageDescriptions(prompt, imageUrlList.value)
       if (answers) roundStore.setAiResponseList(answers)
-    } catch (error) {
+    } catch {
       // console.error('[loadAiResponses] failed:', error)
       roundStore.setAiResponseList(quizStore.quizList.map((quiz) => quiz.preparedAiAnswer || ''))
     }
@@ -121,7 +123,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       if (!ready || hasScheduledNavigation) return
 
       hasScheduledNavigation = true
-      navigationTimer = setTimeout(() => {
+      navigationTimer = scheduleTimeout(() => {
         navigationTimer = null
         safePush({ path: `/round-start/${matchId}`, state: { allowLeave: true } })
       }, START_CHALLENGE_DURATION_MS)
@@ -137,13 +139,13 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       roundStore.resetRoundList()
       roundStore.resetOpponentRoundList()
       revengeStore.clearRevengeInfo()
-    } catch (error) {
+    } catch {
       // console.error('[useChallengePreparation] failed:', error)
     }
   })
 
   onBeforeUnmount(() => {
-    if (navigationTimer) clearTimeout(navigationTimer)
+    cancelTimeout(navigationTimer)
   })
 
   return { userInfo, opponentInfo }

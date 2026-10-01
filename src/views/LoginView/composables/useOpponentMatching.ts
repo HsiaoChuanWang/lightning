@@ -1,4 +1,5 @@
 import { MATCH_SEARCH_POLL_INTERVAL_MS, MATCH_SEARCH_TIMEOUT_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { supabase } from '@/lib/supabaseClient'
 import { toMatch } from '@/mappers/matchMapper'
 import { abandonInProgressMatch, insertMatch } from '@/services/matchService'
@@ -19,7 +20,7 @@ import { useRevengeStore } from '@/stores/revenge'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import type { MatchRecord } from '@/types/database'
-import { getRandomQuizSetId, sleep } from '@/utils/helpers'
+import { getRandomQuizSetId } from '@/utils/helpers'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
@@ -33,6 +34,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
   const globalStore = useGlobalStore()
   const roundStore = useRoundStore()
   const matchStore = useMatchStore()
+  const { delay } = useDisposableTimers()
   const { isMatchCanceled } = storeToRefs(matchStore)
   const isProcessing = ref(false)
   const matchingState = ref<'idle' | 'searching' | 'matched' | 'canceled'>('idle')
@@ -128,7 +130,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
         return acceptMatch(match)
       }
 
-      await sleep(MATCH_SEARCH_POLL_INTERVAL_MS)
+      if (!(await delay(MATCH_SEARCH_POLL_INTERVAL_MS))) return false
     }
 
     return false
@@ -148,7 +150,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
         return candidate
       }
 
-      await sleep(MATCH_SEARCH_POLL_INTERVAL_MS)
+      if (!(await delay(MATCH_SEARCH_POLL_INTERVAL_MS))) return null
     }
 
     return null

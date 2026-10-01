@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { MATCH_LOADING_TIMEOUT_SECONDS } from '@/config/game'
 import { TIMER_TICK_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { removeFromMatchingPool } from '@/services/opponentMatchingService'
 import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
@@ -12,14 +13,15 @@ import ModalComponent from '../ui-components/ModalComponent.vue'
 const globalStore = useGlobalStore()
 const userStore = useUserStore()
 const matchStore = useMatchStore()
+const { cancelInterval, isActive, scheduleInterval } = useDisposableTimers()
 
 const remaining = ref(MATCH_LOADING_TIMEOUT_SECONDS)
-let timerInterval: number | undefined
+let timerInterval: ReturnType<typeof setInterval> | null = null
 
 function startTimer() {
   stopTimer()
   remaining.value = MATCH_LOADING_TIMEOUT_SECONDS
-  timerInterval = window.setInterval(async () => {
+  timerInterval = scheduleInterval(async () => {
     remaining.value -= 1
     if (remaining.value <= 0) {
       stopTimer()
@@ -32,7 +34,7 @@ function startTimer() {
         try {
           await cancelMatch()
         } finally {
-          globalStore.setIsLoadingModalOpen(false)
+          if (isActive()) globalStore.setIsLoadingModalOpen(false)
         }
       }
     }
@@ -40,21 +42,22 @@ function startTimer() {
 }
 
 function stopTimer() {
-  if (timerInterval) {
-    clearInterval(timerInterval)
-    timerInterval = undefined
+  if (timerInterval !== null) {
+    cancelInterval(timerInterval)
+    timerInterval = null
   }
 }
 
 async function cancelMatch() {
   try {
     await removeFromMatchingPool([userStore.myCurrentId])
+    if (!isActive()) return
 
     matchStore.setIsMatchCanceled(true)
 
     stopTimer()
     globalStore.setIsLoadingModalOpen(false)
-  } catch (error) {
+  } catch {
     // console.error('[cancelMatch] failed:', error)
   }
 }

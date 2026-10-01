@@ -1,4 +1,5 @@
 import { REMATCH_RESULT_DELAY_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { toMatch } from '@/mappers/matchMapper'
 import { findMatchedMatch, insertMatch } from '@/services/matchService'
 import {
@@ -18,6 +19,7 @@ export function useRematch(matchId: string | string[]) {
   const matchStore = useMatchStore()
   const revengeStore = useRevengeStore()
   const userStore = useUserStore()
+  const { scheduleTimeout } = useDisposableTimers()
   const { userInfo, opponentInfo } = storeToRefs(userStore)
 
   async function enterExistingMatch(userId: string): Promise<boolean> {
@@ -84,7 +86,7 @@ export function useRematch(matchId: string | string[]) {
         getRandomQuizSetId(),
         existing.revenge_id,
       )
-    } catch (error) {
+    } catch {
       // console.error('[sendRematchRequest] failed:', error)
     }
   }
@@ -110,11 +112,11 @@ export function useRematch(matchId: string | string[]) {
         return
       }
 
-      setTimeout(() => {
+      scheduleTimeout(() => {
         globalStore.setIsPlayAgainModalOpen(false)
         safeReplace('/')
       }, REMATCH_RESULT_DELAY_MS)
-    } catch (error) {
+    } catch {
       // console.error('[replyPlayAgainRequest] failed:', error)
     }
   }

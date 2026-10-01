@@ -6,9 +6,11 @@ import {
 } from '@/config/timing'
 import { useGlobalStore } from '@/stores/global'
 import { safePush } from '@/composables/usePageGuard'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { nextTick, onMounted, ref } from 'vue'
 
 export function useEntryAnimation() {
+  const { scheduleTimeout } = useDisposableTimers()
   const globalStore = useGlobalStore()
   const showTitle = ref(false)
   const showStars = ref(false)
@@ -39,10 +41,10 @@ export function useEntryAnimation() {
   onMounted(() => {
     showTitle.value = true
 
-    setTimeout(() => (showClouds.value = true), LOGIN_CLOUDS_DELAY_MS)
-    setTimeout(() => (showStars.value = true), LOGIN_STARS_DELAY_MS)
-    setTimeout(() => (showFromBottom.value = true), LOGIN_FORM_DELAY_MS)
-    setTimeout(() => (showInputArea.value = true), LOGIN_INPUT_DELAY_MS)
+    scheduleTimeout(() => (showClouds.value = true), LOGIN_CLOUDS_DELAY_MS)
+    scheduleTimeout(() => (showStars.value = true), LOGIN_STARS_DELAY_MS)
+    scheduleTimeout(() => (showFromBottom.value = true), LOGIN_FORM_DELAY_MS)
+    scheduleTimeout(() => (showInputArea.value = true), LOGIN_INPUT_DELAY_MS)
   })
 
   return {

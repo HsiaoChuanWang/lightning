@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { safePush, usePageGuard } from '@/composables/usePageGuard'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { MAX_CUMULATIVE_SCORE, TOTAL_ROUNDS } from '@/config/game'
 import { ROUND_RESULT_DURATION_MS } from '@/config/timing'
 import { completeMatch, isMatchAbandoned } from '@/services/matchService'
@@ -19,6 +20,7 @@ const userStore = useUserStore()
 const matchStore = useMatchStore()
 const roundStore = useRoundStore()
 const route = useRoute()
+const { isActive, scheduleTimeout } = useDisposableTimers()
 const matchId = route.params.matchId
 
 const { userInfo, opponentInfo } = storeToRefs(userStore)
@@ -87,7 +89,7 @@ async function updateMatch() {
     })
 
     return true
-  } catch (error) {
+  } catch {
     // console.error('[updateMatch] failed:', error)
     return false
   }
@@ -109,19 +111,20 @@ async function updateUserWinRate() {
       lossCount: isWin ? lossCount : lossCount + 1,
       totalMatches: totalMatches + 1,
     })
-  } catch (error) {
+  } catch {
     // console.error('[updateUserWinRate] failed:', error)
   }
 }
 
 onMounted(async () => {
   if (currentRound.value < TOTAL_ROUNDS) {
-    setTimeout(() => {
+    scheduleTimeout(() => {
       safePush(`/round-start/${matchId}`)
     }, ROUND_RESULT_DURATION_MS)
   } else {
-    const [matchUpdated] = await Promise.all([updateMatch(), updateUserWinRate()])
+    await Promise.all([updateMatch(), updateUserWinRate()])
 
+    if (!isActive()) return
     safePush(`/game-result/${matchId}`)
   }
 })
