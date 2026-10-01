@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Fixed
+
+### Changed
+
+### Removed
+
+## [0.16.2] - 2026-10-01
+
+### Added
+
+- Add naming conventions and frontend/backend naming boundaries to `PROJECT_STRUCTURE.md`
+
+### Fixed
+
+- Prevent Round Realtime events from another match, opponent, or round from overwriting the current opponent Round
+
+### Changed
+
+- Filter Round Realtime subscriptions by `match_id` and validate `match_id`, `user_id`, and `round` before updating the Store
+
+## [0.16.1] - 2026-10-01
+
+### Added
+
 - Add `GAME_FLOW.md` with Mermaid diagrams for routing, matchmaking, match, round, rematch, modal, and shared Store state transitions
 
 ### Fixed
@@ -20,8 +44,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Filter Match Realtime subscriptions by the current user's `player_one_id` and `player_two_id`
 - Consolidate matchmaking completion through an explicit local state and `acceptMatch()` guard
 - Link the game flow and state documentation from `PROJECT_STRUCTURE.md`
-
-### Removed
 
 ## [0.16.0] - 2026-07-19
 

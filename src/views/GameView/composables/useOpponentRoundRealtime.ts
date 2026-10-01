@@ -5,24 +5,44 @@ import type { RoundRecord } from '@/types/database'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { onBeforeUnmount, onMounted } from 'vue'
 
-export function useOpponentRoundRealtime(opponentId: string) {
+interface UseOpponentRoundRealtimeOptions {
+  matchId: string
+  opponentId: string
+  round: number
+}
+
+interface RoundRealtimeRecord extends RoundRecord {
+  match_id: string
+  user_id: string
+}
+
+export function useOpponentRoundRealtime({
+  matchId,
+  opponentId,
+  round,
+}: UseOpponentRoundRealtimeOptions) {
   const roundStore = useRoundStore()
   let roundChannel: RealtimeChannel | null = null
 
-  /** 建立 rounds UPDATE 監聽，接收指定對手最新的答案、分數與提交時間。 */
+  /** 監聽目前 Match 的 rounds UPDATE，並只接受目前對手及回合的資料。 */
   function subscribeToOpponentRound() {
     roundChannel = supabase
-      .channel('opponent-round-listener')
+      .channel(`opponent-round-${matchId}-${opponentId}-${round}`)
       .on(
         'postgres_changes',
         {
           event: 'UPDATE',
           schema: 'public',
           table: 'rounds',
-          filter: `user_id=eq.${opponentId}`,
+          filter: `match_id=eq.${matchId}`,
         },
         (payload) => {
-          roundStore.updateOpponentCurrentRoundData(toRound(payload.new as RoundRecord))
+          const record = payload.new as RoundRealtimeRecord
+          const belongsToCurrentRound =
+            record.match_id === matchId && record.user_id === opponentId && record.round === round
+
+          if (!belongsToCurrentRound) return
+          roundStore.updateOpponentCurrentRoundData(toRound(record))
         },
       )
       .subscribe()

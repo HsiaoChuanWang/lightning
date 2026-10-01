@@ -222,6 +222,48 @@ Mapper / Supabase / Backend API
 8. 不為只有幾行且只服務 template 的函式過度拆檔。
 9. 每個對外 function 加上說明其目的的註解；Realtime function 需說明監聽的資料表、事件及用途。
 
+## 命名規則
+
+命名以識別字在架構中的用途為準，不單純依 `const`、`let` 等宣告方式判斷。縮寫視為一般單字，例如 `userId`、`aiResponse`、`quizUrl`，不寫成 `userID`、`AIResponse`、`quizURL`。
+
+| 類型 | 規則 | 範例 |
+| --- | --- | --- |
+| Vue Component 與 Component 檔名 | PascalCase | `PlayerInfo`、`PlayerInfo.vue`、`GameResultView.vue` |
+| TypeScript interface、type、class | PascalCase | `Match`、`MatchStatus`、`RoundRealtimeRecord` |
+| 一般變數、參數與 function | camelCase | `matchId`、`currentRound`、`acceptMatch()` |
+| Composable | `use` + PascalCase | `useOpponentMatching()`、`usePageGuard()` |
+| 共享設定值與不變的業務常數 | UPPER_SNAKE_CASE | `TOTAL_ROUNDS`、`MATCH_SEARCH_TIMEOUT_MS` |
+| API、RPC、資料庫 Record 與後端 payload 欄位 | lower_snake_case | `match_id`、`player_one_id`、`submitted_at` |
+| CSS class、route path 與 HTML attribute | kebab-case | `player-card`、`start-challenge`、`aria-label` |
+| 一般 TypeScript／JavaScript 模組檔名 | camelCase | `matchService.ts`、`supabaseClient.ts` |
+
+### 常數與一般 `const` 的區分
+
+`const` 只代表 binding 不會重新賦值，不表示名稱一定要使用 UPPER_SNAKE_CASE。以下仍使用 camelCase：
+
+- Vue 的 `ref`、`computed`、Store instance，例如 `remainingTime`、`matchStore`。
+- function、Composable、Pinia store factory，例如 `safePush`、`useMatchStore`。
+- Client、service response 或執行階段計算結果，例如 `supabase`、`currentQuiz`。
+
+只有跨模組共用、代表固定設定或不變業務規則的值使用 UPPER_SNAKE_CASE，並優先集中於 `src/config/`。
+
+### 前後端命名邊界
+
+lower_snake_case 只保留在 API／資料庫邊界，例如：
+
+- `src/types/database.ts` 的 Database Record。
+- Supabase 的 `.select()`、`.eq()`、`.insert()`、`.update()` 欄位。
+- RPC 參數及 Realtime payload 的原始欄位。
+
+資料進入前端 Domain Model 時，必須透過 mapper 或明確轉換改為 camelCase。View、Component、Store 與一般 composable 不應自行建立新的 lower_snake_case 前端狀態。
+
+### 允許的例外
+
+- `_to`、`_from` 等前置底線參數表示 callback 規格要求但目前未使用的參數。
+- `api/` 下直接對應 endpoint 的檔名可以採用 kebab-case，例如 `describe-image.js`。
+- 環境變數沿用平台慣例使用 UPPER_SNAKE_CASE，例如 `VITE_SUPABASE_URL`。
+- 第三方 API 固定的名稱維持原樣，不為符合本專案規則而改寫。
+
 ## Script 書寫順序
 
 `import` 一律放在 `<script setup>` 最前面。

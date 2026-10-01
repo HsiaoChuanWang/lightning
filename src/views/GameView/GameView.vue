@@ -61,7 +61,11 @@ const {
   timeProgress,
 } = useRoundGameplay({ currentRound, delayTimeMs, matchId })
 
-useOpponentRoundRealtime(opponentInfo.value.opponentId)
+useOpponentRoundRealtime({
+  matchId: String(matchId),
+  opponentId: opponentInfo.value.opponentId,
+  round: currentRound,
+})
 </script>
 
 <template>
