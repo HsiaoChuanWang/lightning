@@ -7,9 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add `GAME_FLOW.md` with Mermaid diagrams for routing, matchmaking, match, round, rematch, modal, and shared Store state transitions
+
 ### Fixed
 
+- Prevent unrelated `matches` INSERT events from being treated as a successful match
+- Prevent Realtime, human polling, Phantom, and AI results from completing the same matchmaking attempt more than once
+- Stop canceled or stale matchmaking operations from creating a later fallback match
+
 ### Changed
+
+- Filter Match Realtime subscriptions by the current user's `player_one_id` and `player_two_id`
+- Consolidate matchmaking completion through an explicit local state and `acceptMatch()` guard
+- Link the game flow and state documentation from `PROJECT_STRUCTURE.md`
 
 ### Removed
 

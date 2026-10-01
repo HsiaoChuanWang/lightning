@@ -13,7 +13,7 @@ import {
 import { findRounds } from '@/services/roundService'
 import { createUser } from '@/services/userService'
 import { useGlobalStore } from '@/stores/global'
-import { useMatchStore, type OpponentType } from '@/stores/match'
+import { useMatchStore, type Match, type OpponentType } from '@/stores/match'
 import { useQuizStore } from '@/stores/quiz'
 import { useRevengeStore } from '@/stores/revenge'
 import { useRoundStore } from '@/stores/round'
@@ -34,37 +34,68 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
   const roundStore = useRoundStore()
   const matchStore = useMatchStore()
   const { isMatchCanceled } = storeToRefs(matchStore)
-  const isMatched = ref(false)
   const isProcessing = ref(false)
-  let matchSubscription: RealtimeChannel | null = null
+  const matchingState = ref<'idle' | 'searching' | 'matched' | 'canceled'>('idle')
+  let matchSubscriptions: RealtimeChannel[] = []
 
-  /** 移除目前 matches Realtime 監聽，避免重複接收配對建立事件。 */
-  function removeMatchSubscription() {
-    if (!matchSubscription) return
-    supabase.removeChannel(matchSubscription)
-    matchSubscription = null
+  function isSearchActive() {
+    if (isMatchCanceled.value) {
+      matchingState.value = 'canceled'
+      return false
+    }
+
+    return matchingState.value === 'searching'
   }
 
-  // 監聽 matches table
+  /** 只有第一個配對結果可以更新狀態及啟動進場動畫。 */
+  function acceptMatch(match: Match) {
+    if (!isSearchActive()) return false
+
+    matchingState.value = 'matched'
+    matchStore.setMatchData(match)
+    removeMatchSubscriptions()
+    triggerEntryAnimation(`/start-challenge/${match.matchId}`)
+    return true
+  }
+
+  /** 移除目前 matches Realtime 監聽，避免重複接收配對建立事件。 */
+  function removeMatchSubscriptions() {
+    for (const subscription of matchSubscriptions) {
+      void supabase.removeChannel(subscription)
+    }
+    matchSubscriptions = []
+  }
+
+  /** 分別監聽玩家位於 player one / player two 的對戰，避免接收整張表的 INSERT。 */
   function subscribeToMatch(userId: string) {
-    removeMatchSubscription()
+    removeMatchSubscriptions()
 
-    matchSubscription = supabase
-      .channel(`match-channel-${userId}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'matches' },
-        (payload) => {
-          isMatched.value = true
-          const { player_one_id, player_two_id } = payload.new
+    /** 依指定的玩家欄位訂閱只包含目前使用者的 Match INSERT 事件。 */
+    const subscribeForPlayerColumn = (column: 'player_one_id' | 'player_two_id') =>
+      supabase
+        .channel(`match-channel-${column}-${userId}`)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'matches',
+            filter: `${column}=eq.${userId}`,
+          },
+          (payload) => {
+            const record = payload.new as MatchRecord
 
-          if (player_one_id === userId || player_two_id === userId) {
-            matchStore.setMatchData(toMatch(payload.new as MatchRecord))
-            triggerEntryAnimation(`/start-challenge/${payload.new.match_id}`)
-          }
-        },
-      )
-      .subscribe()
+            // 保留 client-side 驗證，避免錯誤或過期事件完成目前的搜尋。
+            if (record.player_one_id !== userId && record.player_two_id !== userId) return
+            acceptMatch(toMatch(record))
+          },
+        )
+        .subscribe()
+
+    matchSubscriptions = [
+      subscribeForPlayerColumn('player_one_id'),
+      subscribeForPlayerColumn('player_two_id'),
+    ]
   }
 
   async function initUser(userName: string) {
@@ -90,13 +121,11 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
     const start = Date.now()
 
     while (Date.now() - start < timeout) {
-      if (isMatchCanceled.value) return
+      if (!isSearchActive()) return false
       const match = await matchHuman(myId, getRandomQuizSetId())
 
       if (match) {
-        matchStore.setMatchData(match)
-        triggerEntryAnimation(`/start-challenge/${match.matchId}`)
-        return true
+        return acceptMatch(match)
       }
 
       await sleep(MATCH_SEARCH_POLL_INTERVAL_MS)
@@ -109,11 +138,12 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
     const start = Date.now()
 
     while (Date.now() - start < timeout) {
-      if (isMatchCanceled.value) return
+      if (!isSearchActive()) return null
       const candidate = await findPhantomCandidate(myId)
 
       if (candidate) {
         const rounds = await findRounds(candidate.match_id, candidate.player_one_id)
+        if (!isSearchActive()) return null
         roundStore.setPhantomRoundList(rounds)
         return candidate
       }
@@ -131,7 +161,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
     quizSetId: number,
   ) {
     const matchId = uuidv4()
-    matchStore.setMatchData({
+    const match: Match = {
       matchId,
       playerOneId: myId,
       playerTwoId,
@@ -139,15 +169,20 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       quizSetId,
       isComplete: false,
       status: 'matched',
-    })
+    }
+
+    if (!isSearchActive()) return false
 
     if (await hasMatchedHuman(myId)) {
       await removeFromMatchingPool([myId])
-      return
+      return false
     }
+
+    if (!isSearchActive()) return false
 
     await insertMatch({ matchId, playerOneId: myId, playerTwoId, opponentType, quizSetId })
     await removeFromMatchingPool([myId, playerTwoId])
+    return acceptMatch(match)
   }
 
   function resetGameState() {
@@ -172,7 +207,8 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
 
     isProcessing.value = true
     resetGameState()
-    removeMatchSubscription()
+    matchingState.value = 'searching'
+    removeMatchSubscriptions()
 
     try {
       const userInfo = await initUser(userName)
@@ -188,7 +224,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       }
 
       const humanOpponent = await tryFindHumanOpponent(userInfo.userId)
-      if (humanOpponent || isMatched.value) return
+      if (humanOpponent || !isSearchActive()) return
 
       const phantomOpponent = await tryFindPhantomOpponent(userInfo.userId)
       if (phantomOpponent) {
@@ -201,21 +237,25 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
         return
       }
 
-      if (isMatchCanceled.value) return
+      if (!isSearchActive()) return
       const aiOpponent = await createAiOpponent()
 
-      if (aiOpponent) {
+      if (aiOpponent && isSearchActive()) {
         await createMatch(userInfo.userId, aiOpponent, 'ai', getRandomQuizSetId())
       }
-    } catch (error) {
-      // console.error('[startMatching] failed:', error)
+    } catch {
+      matchingState.value = 'idle'
+      globalStore.setIsLoadingModalOpen(false)
     } finally {
       isProcessing.value = false
+      if (matchingState.value === 'searching') matchingState.value = 'idle'
+      removeMatchSubscriptions()
     }
   }
 
   onBeforeUnmount(() => {
-    removeMatchSubscription()
+    matchingState.value = 'canceled'
+    removeMatchSubscriptions()
     globalStore.setIsLoadingModalOpen(false)
   })
 

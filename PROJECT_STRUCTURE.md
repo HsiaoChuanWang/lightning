@@ -71,12 +71,17 @@ Lightning/
 │  ├─ App.vue
 │  └─ main.ts
 ├─ .env.local
+├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
 ├─ env.d.ts
 ├─ index.html
 ├─ package.json
 ├─ vite.config.ts
 └─ vercel.json
 ```
+
+## 流程與狀態文件
+
+完整的登入配對、Match、回合、計分、結算、再戰及離開流程集中記錄於 [`GAME_FLOW.md`](./GAME_FLOW.md)。本文件負責說明程式碼結構與各層職責；流程或狀態改動時，應同步更新 `GAME_FLOW.md`。
 
 ## 各層職責
 
