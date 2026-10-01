@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.3] - 2026-10-01
+
+### Changed
+
+- Centralize lifecycle-safe timers and polling, make RoundResult score blocks responsive from a 156px minimum, and delay final navigation by three seconds
+
 ## [0.16.2] - 2026-10-01
 
 ### Added

@@ -20,7 +20,7 @@ const userStore = useUserStore()
 const matchStore = useMatchStore()
 const roundStore = useRoundStore()
 const route = useRoute()
-const { isActive, scheduleTimeout } = useDisposableTimers()
+const { delay, isActive, scheduleTimeout } = useDisposableTimers()
 const matchId = route.params.matchId
 
 const { userInfo, opponentInfo } = storeToRefs(userStore)
@@ -122,7 +122,11 @@ onMounted(async () => {
       safePush(`/round-start/${matchId}`)
     }, ROUND_RESULT_DURATION_MS)
   } else {
-    await Promise.all([updateMatch(), updateUserWinRate()])
+    await Promise.all([
+      updateMatch(),
+      updateUserWinRate(),
+      delay(ROUND_RESULT_DURATION_MS),
+    ])
 
     if (!isActive()) return
     safePush(`/game-result/${matchId}`)
