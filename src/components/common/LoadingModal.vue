@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { supabase } from '@/lib/supabaseClient'
+import { MATCH_LOADING_TIMEOUT_SECONDS } from '@/config/game'
+import { TIMER_TICK_MS } from '@/config/timing'
+import { removeFromMatchingPool } from '@/services/opponentMatchingService'
 import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
 import { useUserStore } from '@/stores/user'
@@ -11,30 +13,12 @@ const globalStore = useGlobalStore()
 const userStore = useUserStore()
 const matchStore = useMatchStore()
 
-const totalTime = 30
-const remaining = ref(totalTime)
+const remaining = ref(MATCH_LOADING_TIMEOUT_SECONDS)
 let timerInterval: number | undefined
-
-watch(
-  () => globalStore.isLoadingModalOpen,
-  (isOpen) => {
-    if (isOpen) {
-      startTimer()
-    } else {
-      stopTimer()
-      // 不在這裡重設，等待 unmount 後重設為 totalTime
-    }
-  },
-)
-
-onUnmounted(() => {
-  stopTimer()
-  remaining.value = totalTime
-})
 
 function startTimer() {
   stopTimer()
-  remaining.value = totalTime
+  remaining.value = MATCH_LOADING_TIMEOUT_SECONDS
   timerInterval = window.setInterval(async () => {
     remaining.value -= 1
     if (remaining.value <= 0) {
@@ -52,7 +36,7 @@ function startTimer() {
         }
       }
     }
-  }, 1000)
+  }, TIMER_TICK_MS)
 }
 
 function stopTimer() {
@@ -64,26 +48,33 @@ function stopTimer() {
 
 async function cancelMatch() {
   try {
-    const { error: deleteFromMatchingPoolError } = await supabase
-      .from('matching_pool')
-      .delete()
-      .eq('user_id', userStore.myCurrentId)
-
-    if (deleteFromMatchingPoolError) {
-      throw new Error(
-        '[deleteFromMatchingPoolError] 從 matching_pool 刪除失敗：' +
-          deleteFromMatchingPoolError.message,
-      )
-    }
+    await removeFromMatchingPool([userStore.myCurrentId])
 
     matchStore.setIsMatchCanceled(true)
 
     stopTimer()
     globalStore.setIsLoadingModalOpen(false)
   } catch (error) {
-    console.error('[cancelMatch error] 發生錯誤：', error)
+    // console.error('[cancelMatch] failed:', error)
   }
 }
+
+watch(
+  () => globalStore.isLoadingModalOpen,
+  (isOpen) => {
+    if (isOpen) {
+      startTimer()
+    } else {
+      stopTimer()
+      // 不在這裡重設，等待 unmount 後重設為完整配對時間
+    }
+  },
+)
+
+onUnmounted(() => {
+  stopTimer()
+  remaining.value = MATCH_LOADING_TIMEOUT_SECONDS
+})
 </script>
 
 <template>

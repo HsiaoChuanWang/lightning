@@ -103,7 +103,7 @@ app.post('/api/vectors', async (req, res) => {
 
 // 啟動伺服器
 app.listen(port, () => {
-  console.log(`🚀 Server running at http://localhost:${port}`)
+  console.log(`Server running at http://localhost:${port}`)
   console.log(`圖片分析 API: http://localhost:${port}/api/describe-image`)
   console.log(`向量獲取 API: http://localhost:${port}/api/vectors`)
 })

@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-interface UserInfo {
+export interface UserInfo {
   userId: string
   userName: string
   avatarUrl: string
@@ -10,7 +10,7 @@ interface UserInfo {
   totalMatches: number
 }
 
-interface OpponentInfo {
+export interface OpponentInfo {
   opponentId: string
   opponentName: string
   opponentAvatarUrl: string

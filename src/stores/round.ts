@@ -32,7 +32,7 @@ export const useRoundStore = defineStore('round', () => {
     }
   }
 
-  function restMyRoundList() {
+  function resetMyRoundList() {
     myRoundList.value = []
   }
 
@@ -51,7 +51,7 @@ export const useRoundStore = defineStore('round', () => {
     }
   }
 
-  function restOpponentRoundList() {
+  function resetOpponentRoundList() {
     opponentRoundList.value = []
   }
 
@@ -70,10 +70,10 @@ export const useRoundStore = defineStore('round', () => {
     aiResponseList,
     updateRoundList,
     updateMyCurrentRoundData,
-    restRoundList: restMyRoundList,
+    resetRoundList: resetMyRoundList,
     updateOpponentRoundList,
     updateOpponentCurrentRoundData,
-    restOpponentRoundList,
+    resetOpponentRoundList,
     setPhantomRoundList,
     setAiResponseList,
   }

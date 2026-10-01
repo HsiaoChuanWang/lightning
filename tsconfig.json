@@ -15,9 +15,8 @@
     "verbatimModuleSyntax": true, // 這是 isolatedModules 的超集
     "strict": true, // 開啟嚴格模式，確保類型安全
     "noImplicitThis": true, // 避免 this 變成 any
-    "baseUrl": ".", // 設定 baseUrl 為當前目錄
     "paths": {
-      "@/*": ["src/*"] // 確保 TypeScript 知道 @ 符號的別名
+      "@/*": ["./src/*"] // 確保 TypeScript 知道 @ 符號的別名
     }
   }
 }

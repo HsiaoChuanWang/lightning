@@ -1,9 +1,9 @@
 import MainLayout from '@/layouts/MainLayout.vue'
-import GameResultView from '@/views/GameResultView.vue'
+import GameResultView from '@/views/GameResultView/GameResultView.vue'
 import GameView from '@/views/GameView/GameView.vue'
-import LoginView from '@/views/LoginView.vue'
+import LoginView from '@/views/LoginView/LoginView.vue'
 import RoundResultView from '@/views/RoundResultView/RoundResultView.vue'
-import RoundStartView from '@/views/RoundStartView.vue'
+import RoundStartView from '@/views/RoundStartView/RoundStartView.vue'
 import StartChallengeView from '@/views/StartChallengeView/StartChallengeView.vue'
 import { createRouter, createWebHistory } from 'vue-router'
 

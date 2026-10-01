@@ -27,9 +27,14 @@ interface LabelItem {
 }
 
 const labelList = computed<LabelItem[]>(() => [
-  { label: 'Win', value: props.infoData.winCount, labelColor: '#D9F658' },
-  { label: 'Lose', value: props.infoData.lossCount, labelColor: '#F2B6DE' },
-  { label: 'Win Rate', value: props.infoData.winRate, unit: '%', labelColor: '#86E6FF' },
+  { label: 'Win', value: props.infoData.winCount, labelColor: 'var(--color-yellow-800)' },
+  { label: 'Lose', value: props.infoData.lossCount, labelColor: 'var(--color-pink-1000)' },
+  {
+    label: 'Win Rate',
+    value: props.infoData.winRate,
+    unit: '%',
+    labelColor: 'var(--color-blue-1400)',
+  },
 ])
 
 // 計算 CSS 用的字串(number to string)
@@ -94,7 +99,7 @@ const contentDelay = computed(() => `${props.delay + 0.4}s`)
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: #fce300;
+  background-color: var(--color-yellow-900);
   border-radius: 4px 20px;
   z-index: 10;
 

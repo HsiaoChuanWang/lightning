@@ -13,6 +13,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.0] - 2026-07-19
+
+### Fixed
+
+- Remove stray template literal left in LoginView.vue
+- Remove redundant abandoned-match check in RoundResultView
+
+### Changed
+
+- Extract StartChallengeView preparation flow into `useChallengePreparation` composable
+- Move hardcoded hex colors into design tokens in `variables.scss`
+- Standardize `console.error` tagging to `[functionName] failed:` across composables and services
+- Comment out client-side console logging; keep server-side logging in `api/` and `server/dev-server.js` active
+- Document StartChallengeView composables and GameResultView components in PROJECT_STRUCTURE.md
+
+### Removed
+
+- Remove dead debug `console.log` from EntryBanner
+
 ## [0.15.0] - 2026-07-15
 
 ### Added

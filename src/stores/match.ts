@@ -1,6 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+export type OpponentType = 'human' | 'phantom' | 'ai'
+export type MatchStatus = 'none' | 'matched' | 'in_progress' | 'completed' | 'abandoned'
+
 export interface Match {
   matchId: string
   playerOneId: string
