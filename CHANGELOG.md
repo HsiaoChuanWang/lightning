@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.5] - 2026-10-03
+
+### Added
+
+- Add a Supabase-backed match phase flow so games continue on schedule while the browser is in the background
+
+### Fixed
+
+- Fix Round countdown and reveal timing, stale GameResult redirects, and unreliable Play Again navigation between both players
+
+### Changed
+
+- Refine matchmaking, StartChallenge banners, Time's Up feedback, and rematch modal transitions for clearer timing and smoother UI
+
 ## [0.16.4] - 2026-10-02
 
 ### Changed

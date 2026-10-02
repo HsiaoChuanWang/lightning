@@ -1,20 +1,13 @@
-import {
-  QUESTION_PREVIEW_DURATION_MS,
-  ROUND_READY_POLL_INTERVAL_MS,
-  ROUND_READY_TIMEOUT_MS,
-  ROUND_TITLE_DURATION_MS,
-} from '@/config/timing'
+import { ROUND_READY_POLL_INTERVAL_MS, ROUND_READY_TIMEOUT_MS } from '@/config/timing'
 import { useDisposableTimers } from '@/composables/useDisposableTimers'
-import { abandonMatch } from '@/services/matchService'
-import { createRound, findRound } from '@/services/roundService'
+import { findRound } from '@/services/roundService'
 import { useMatchStore } from '@/stores/match'
-import { useQuizStore } from '@/stores/quiz'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
-import { safePush, safeReplace } from '@/composables/usePageGuard'
+import { safeReplace } from '@/composables/usePageGuard'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 
 interface UseRoundPreparationOptions {
   currentRound: number
@@ -29,35 +22,21 @@ export function useRoundPreparation({
   nextRound,
 }: UseRoundPreparationOptions) {
   const matchStore = useMatchStore()
-  const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
   const { delay, isActive } = useDisposableTimers()
-  const { phantomRoundList } = storeToRefs(roundStore)
+  const { myRoundList, opponentRoundList, phantomRoundList } = storeToRefs(roundStore)
   const { userInfo, opponentInfo } = storeToRefs(userStore)
   const currentStage = ref<'round' | 'question'>('round')
 
-  async function createNewRound() {
-    try {
-      const newRound = await createRound({
-        matchId,
-        userId: userStore.userInfo.userId,
-        quizSetId: matchStore.matchData.quizSetId,
-        quizId: quizStore.quizList[currentRound]?.quizId,
-        round: nextRound,
-      })
-      if (!isActive()) return
-      roundStore.updateRoundList(newRound)
-    } catch (error) {
-      if (!isActive()) return
-      safeReplace(`/`)
-      // console.error('[createNewRound] failed:', error)
-      throw error
-    }
-  }
-
-  /** 真人對戰時，待兩邊都建立後，把對手回合加入 Round Store。 */
+  /** 真人 Round 由後端狀態機建立；這裡只補齊目前畫面需要的對手資料。 */
   async function waitForHumanRounds() {
+    const hasMyRound = myRoundList.value.some((roundData) => roundData.round === nextRound)
+    const hasOpponentRound = opponentRoundList.value.some(
+      (roundData) => roundData.round === nextRound,
+    )
+    if (hasMyRound && hasOpponentRound) return true
+
     const start = Date.now()
 
     while (isActive() && Date.now() - start < ROUND_READY_TIMEOUT_MS) {
@@ -67,7 +46,7 @@ export function useRoundPreparation({
       if (!isActive()) return false
 
       if (myRound && opponentRound) {
-        roundStore.updateOpponentRoundList(opponentRound)
+        if (!hasOpponentRound) roundStore.updateOpponentRoundList(opponentRound)
         return true
       }
 
@@ -145,7 +124,7 @@ export function useRoundPreparation({
     }
   }
 
-  /** 建立回合並依序顯示 Round 與 Question 預覽；雙方就緒後進入作答頁。 */
+  /** 準備目前頁面的對手資料；顯示階段與下一頁完全由後端 phase 決定。 */
   async function prepareRound() {
     if (!userInfo.value.userId) {
       safeReplace(`/`)
@@ -153,28 +132,21 @@ export function useRoundPreparation({
     }
 
     try {
-      await createNewRound()
-      if (!isActive() || !(await delay(ROUND_TITLE_DURATION_MS))) return
-      currentStage.value = 'question'
-      if (!(await delay(QUESTION_PREVIEW_DURATION_MS))) return
-
-      const bothReady = await waitForRounds()
-      if (!isActive()) return
-
-      if (bothReady) {
-        safePush({ path: `/game/${matchId}`, state: { allowLeave: true } })
-        return
-      }
-
-      const isPlayerOne = matchStore.matchData.playerOneId === userStore.userInfo.userId
-      await abandonMatch(String(matchId), isPlayerOne)
-      safeReplace(`/`)
+      await waitForRounds()
     } catch {
       if (!isActive()) return
       // console.error('[prepareRound] failed:', error)
       safeReplace(`/`)
     }
   }
+
+  watch(
+    () => matchStore.matchData.phase,
+    (phase) => {
+      currentStage.value = phase === 'question_preview' ? 'question' : 'round'
+    },
+    { immediate: true },
+  )
 
   onMounted(prepareRound)
 

@@ -3,6 +3,7 @@ import PlayerInfo from '@/components/common/PlayerInfo.vue'
 import ButtonComponent from '@/components/ui-components/ButtonComponent.vue'
 import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
+import { useQuizStore } from '@/stores/quiz'
 import { useRevengeStore } from '@/stores/revenge'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
@@ -19,6 +20,8 @@ const globalStore = useGlobalStore()
 const userStore = useUserStore()
 const roundStore = useRoundStore()
 const matchStore = useMatchStore()
+const quizStore = useQuizStore()
+const revengeStore = useRevengeStore()
 const route = useRoute()
 const matchId = route.params.matchId
 
@@ -43,6 +46,16 @@ useRevengeRealtime(matchId)
 
 /** 關閉結果流程並返回登入首頁。 */
 function handleBackToHome() {
+  // 先結束上一場遊戲的前端 session，避免全域 Match 同步器依照舊 matchId
+  // 再次把 LoginView 導回已完成的 GameResultView。
+  globalStore.setIsPlayAgainModalOpen(false)
+  matchStore.clearMatchData()
+  matchStore.setIsWin(false)
+  quizStore.clearQuizList()
+  roundStore.resetRoundList()
+  roundStore.resetOpponentRoundList()
+  revengeStore.clearRevengeInfo()
+  userStore.clearOpponent()
   safeReplace('/')
 }
 </script>

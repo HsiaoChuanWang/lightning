@@ -105,6 +105,7 @@ export async function updateRoundSubmission({
     .eq('match_id', matchId)
     .eq('round_id', roundId)
     .eq('round', round)
+    .is('submitted_at', null)
 
   if (error) throw new Error('[updateRoundSubmission] 更新回合失敗：' + error.message)
 }

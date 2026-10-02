@@ -2,14 +2,15 @@
 import clockImg from '@/assets/images/common/clock.png'
 import PlayerInfo from '@/components/common/PlayerInfo.vue'
 import { ANSWER_CHAR_LIMIT, TOTAL_ROUNDS } from '@/config/game'
-import { ROUND_SYNC_MAX_DELAY_MS, ROUND_SYNC_MIN_DELAY_MS } from '@/config/timing'
 import { useGlobalStore } from '@/stores/global'
+import { useMatchStore } from '@/stores/match'
 import { useQuizStore } from '@/stores/quiz'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { formatTime } from '@/utils/helpers'
 import { usePageGuard } from '@/composables/usePageGuard'
 import { storeToRefs } from 'pinia'
+import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import DescribeSection from './components/DescribeSection.vue'
 import QuestionSection from './components/QuestionSection.vue'
@@ -17,6 +18,7 @@ import { useOpponentRoundRealtime } from './composables/useOpponentRoundRealtime
 import { useRoundGameplay } from './composables/useRoundGameplay'
 
 const globalStore = useGlobalStore()
+const matchStore = useMatchStore()
 const userStore = useUserStore()
 const quizStore = useQuizStore()
 const roundStore = useRoundStore()
@@ -33,18 +35,15 @@ usePageGuard({
   },
 })
 
-const currentRound = myRoundList.value.length
+const currentRound = matchStore.matchData.currentRound
+const currentMyRound = computed(() =>
+  myRoundList.value.find((roundData) => roundData.round === currentRound),
+)
+const currentOpponentRound = computed(() =>
+  opponentRoundList.value.find((roundData) => roundData.round === currentRound),
+)
 const currentQuiz = quizList.value[currentRound - 1]
 const currentQuizImage = import.meta.env.VITE_SUPABASE_URL + currentQuiz?.imageUrl
-const myCreatedAt = new Date(myRoundList.value[currentRound - 1]?.createdAt ?? 0).getTime()
-const opponentCreatedAt = new Date(
-  opponentRoundList.value[currentRound - 1]?.createdAt ?? 0,
-).getTime()
-const createdDiff = Math.abs(opponentCreatedAt - myCreatedAt)
-const delayTimeMs = Math.min(
-  ROUND_SYNC_MAX_DELAY_MS,
-  Math.max(ROUND_SYNC_MIN_DELAY_MS, createdDiff),
-)
 
 const {
   handleSubmit,
@@ -56,10 +55,10 @@ const {
   opponentScoreWithoutThisRound,
   opponentSubmitted,
   remainingTime,
-  roundFinished,
+  showTimeUp,
   showAnswer,
   timeProgress,
-} = useRoundGameplay({ currentRound, delayTimeMs, matchId })
+} = useRoundGameplay({ currentRound, matchId })
 
 useOpponentRoundRealtime({
   matchId: String(matchId),
@@ -134,9 +133,9 @@ useOpponentRoundRealtime({
 
       <DescribeSection
         :my-name="userInfo.userName"
-        :my-answer="myRoundList[myRoundList.length - 1]?.input ?? ''"
+        :my-answer="currentMyRound?.input ?? ''"
         :opponent-name="opponentInfo.opponentName"
-        :opponent-answer="opponentRoundList[opponentRoundList.length - 1]?.input ?? ''"
+        :opponent-answer="currentOpponentRound?.input ?? ''"
         :opponent-submitted="opponentSubmitted"
         :count-chars="inputValue.length"
         :chars-limit="ANSWER_CHAR_LIMIT"
@@ -150,7 +149,7 @@ useOpponentRoundRealtime({
         :show-answer="showAnswer"
       />
 
-      <div v-if="roundFinished && !showAnswer" class="time-up-container">
+      <div v-if="showTimeUp && !showAnswer" class="time-up-container">
         <div class="time-up-wrap">
           <div class="time-up"><p class="bungee-regular-92">TIME'S UP!</p></div>
         </div>

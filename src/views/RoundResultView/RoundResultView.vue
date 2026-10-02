@@ -1,31 +1,20 @@
 <script setup lang="ts">
-import { safePush, usePageGuard } from '@/composables/usePageGuard'
-import { useDisposableTimers } from '@/composables/useDisposableTimers'
-import { MAX_CUMULATIVE_SCORE, TOTAL_ROUNDS } from '@/config/game'
-import { ROUND_RESULT_DURATION_MS } from '@/config/timing'
-import { completeMatch, isMatchAbandoned } from '@/services/matchService'
-import { updateUserStats } from '@/services/userService'
+import { usePageGuard } from '@/composables/usePageGuard'
+import { MAX_CUMULATIVE_SCORE } from '@/config/game'
 import { useGlobalStore } from '@/stores/global'
-import { useMatchStore } from '@/stores/match'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { calculateCumulativeScore } from '@/utils/helpers'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
 import PlayerScoreRow from './components/PlayerScoreRow.vue'
 
 const globalStore = useGlobalStore()
 const userStore = useUserStore()
-const matchStore = useMatchStore()
 const roundStore = useRoundStore()
-const route = useRoute()
-const { delay, isActive, scheduleTimeout } = useDisposableTimers()
-const matchId = route.params.matchId
 
 const { userInfo, opponentInfo } = storeToRefs(userStore)
-const { myRoundList, opponentRoundList } = storeToRefs(roundStore)
-const { matchData } = storeToRefs(matchStore)
+const { myRoundList } = storeToRefs(roundStore)
 
 usePageGuard({
   onReloadAttempt: () => {
@@ -33,19 +22,7 @@ usePageGuard({
   },
 })
 
-const isPlayerOne = userInfo.value.userId === matchData.value.playerOneId
 const currentRound = computed(() => myRoundList.value.length)
-const myCumulativeScore = computed(() => calculateCumulativeScore(myRoundList.value))
-const opponentCumulativeScore = computed(() => calculateCumulativeScore(opponentRoundList.value))
-const winnerId = computed(() => {
-  if (myCumulativeScore.value > opponentCumulativeScore.value) {
-    return userInfo.value.userId
-  } else if (myCumulativeScore.value < opponentCumulativeScore.value) {
-    return opponentInfo.value.opponentId
-  } else {
-    return null
-  }
-})
 
 const myScoreWithoutThisRound = computed(() =>
   calculateCumulativeScore(roundStore.myRoundList.slice(0, currentRound.value - 1)),
@@ -70,68 +47,7 @@ function calcWidth(score: number) {
   return (score / MAX_CUMULATIVE_SCORE) * 100
 }
 
-// 確認對手是否已經放棄比賽，若放棄，此局不列入計分
-async function checkIsAbandonedMatch() {
-  return isMatchAbandoned(matchId, userStore.userInfo.userId)
-}
-
-async function updateMatch() {
-  try {
-    const status = (await checkIsAbandonedMatch()) ? 'abandoned' : 'completed'
-
-    matchStore.updateMatchData({ status, isComplete: true })
-
-    await completeMatch({
-      matchId: matchStore.matchData.matchId,
-      winnerId: winnerId.value,
-      isPlayerOne,
-      status,
-    })
-
-    return true
-  } catch {
-    // console.error('[updateMatch] failed:', error)
-    return false
-  }
-}
-
-async function updateUserWinRate() {
-  const { userId, winCount, lossCount, totalMatches } = userInfo.value
-  const isWin = winnerId.value === userId
-
-  try {
-    const isAbandoned = await checkIsAbandonedMatch()
-    if (isAbandoned) return
-
-    matchStore.setIsWin(isWin)
-
-    await updateUserStats({
-      userId,
-      winCount: isWin ? winCount + 1 : winCount,
-      lossCount: isWin ? lossCount : lossCount + 1,
-      totalMatches: totalMatches + 1,
-    })
-  } catch {
-    // console.error('[updateUserWinRate] failed:', error)
-  }
-}
-
-onMounted(async () => {
-  if (currentRound.value < TOTAL_ROUNDS) {
-    scheduleTimeout(() => {
-      safePush(`/round-start/${matchId}`)
-    }, ROUND_RESULT_DURATION_MS)
-  } else {
-    await Promise.all([
-      updateMatch(),
-      updateUserWinRate(),
-      delay(ROUND_RESULT_DURATION_MS),
-    ])
-
-    if (!isActive()) return
-    safePush(`/game-result/${matchId}`)
-  }
-})
+// 停留時間、下一回合與最終結算皆由 Supabase Match phase 控制。
 </script>
 
 <template>

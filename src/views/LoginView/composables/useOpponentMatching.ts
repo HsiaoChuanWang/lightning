@@ -171,6 +171,11 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       quizSetId,
       isComplete: false,
       status: 'matched',
+      currentRound: 1,
+      phase: 'entry_banner',
+      phaseStartedAt: '',
+      phaseDeadlineAt: '',
+      flowCompletedAt: null,
     }
 
     if (!isSearchActive()) return false

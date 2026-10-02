@@ -14,7 +14,7 @@ interface CreateMatchParams {
 export async function findMatchedMatch(userId: string): Promise<MatchRecord | null> {
   const { data, error } = await supabase
     .from('matches')
-    .select('match_id, player_one_id, player_two_id, opponent_type, quiz_set_id')
+    .select('*')
     .or(`player_one_id.eq.${userId},player_two_id.eq.${userId}`)
     .eq('status', 'matched')
     .maybeSingle()
@@ -54,12 +54,34 @@ export async function insertMatch({
 export async function findInProgressMatch(userId: string): Promise<MatchRecord | null> {
   const { data, error } = await supabase
     .from('matches')
-    .select('match_id, player_one_id, player_two_id, opponent_type, quiz_set_id')
+    .select('*')
     .or(`player_one_id.eq.${userId},player_two_id.eq.${userId}`)
     .eq('status', 'in_progress')
     .maybeSingle()
 
   if (error) throw new Error('[findInProgressMatch] 搜尋對戰失敗：' + error.message)
+  return data
+}
+
+/** 讀取後端目前階段；前端只同步結果，不直接呼叫流程推進 RPC。 */
+export async function findMatchById(matchId: string): Promise<MatchRecord | null> {
+  const { data, error } = await supabase
+    .from('matches')
+    .select('*')
+    .eq('match_id', matchId)
+    .maybeSingle()
+
+  if (error) throw new Error('[findMatchById] 讀取比賽流程失敗：' + error.message)
+  return data
+}
+
+/** Game 完成 render 後通知資料庫開始作答；每個頁面實例只會呼叫一次。 */
+export async function startAnsweringAfterRender(matchId: string): Promise<MatchRecord | null> {
+  const { data, error } = await supabase.rpc('start_answering_after_render', {
+    target_match_id: matchId,
+  })
+
+  if (error) throw new Error('[startAnsweringAfterRender] 開始作答失敗：' + error.message)
   return data
 }
 

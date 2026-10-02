@@ -3,8 +3,8 @@ import StarIcon from '@/assets/icons/StarIcon.vue'
 import QuestionDisplay from '@/components/common/QuestionDisplay.vue'
 import { TOTAL_ROUNDS } from '@/config/game'
 import { useGlobalStore } from '@/stores/global'
+import { useMatchStore } from '@/stores/match'
 import { useQuizStore } from '@/stores/quiz'
-import { useRoundStore } from '@/stores/round'
 import { usePageGuard } from '@/composables/usePageGuard'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
@@ -12,27 +12,26 @@ import { useRoundPreparation } from './composables/useRoundPreparation'
 
 const globalStore = useGlobalStore()
 const quizStore = useQuizStore()
-const roundStore = useRoundStore()
+const matchStore = useMatchStore()
 const route = useRoute()
 const matchId = route.params.matchId
 
 const { quizList } = storeToRefs(quizStore)
-const { myRoundList } = storeToRefs(roundStore)
 
 usePageGuard({
   onReloadAttempt: () => {
     globalStore.setIsBackToLoginModalOpen(true)
   },
 })
-const currentRound = myRoundList.value.length
-const nextRound = currentRound + 1
+const nextRound = matchStore.matchData.currentRound
+const currentRound = nextRound - 1
 const nextRoundQuiz = quizList.value[currentRound]
 const currentQuizImage = import.meta.env.VITE_SUPABASE_URL + nextRoundQuiz?.imageUrl
 const { currentStage } = useRoundPreparation({ currentRound, matchId, nextRound })
 
 const repeatCount = 4
 const space = ' '.repeat(5)
-const text = `QUESTION ${myRoundList.value.length + 1}${space}`.repeat(repeatCount)
+const text = `QUESTION ${nextRound}${space}`.repeat(repeatCount)
 const chars = text.split('')
 const step = 360 / chars.length
 const radius = 'min(50vh, 50vw)'

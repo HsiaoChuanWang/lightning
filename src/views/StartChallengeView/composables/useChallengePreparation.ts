@@ -1,6 +1,4 @@
-import { safePush, usePageGuard } from '@/composables/usePageGuard'
-import { useDisposableTimers } from '@/composables/useDisposableTimers'
-import { START_CHALLENGE_DURATION_MS } from '@/config/timing'
+import { usePageGuard } from '@/composables/usePageGuard'
 import { toOpponentInfo, toUserInfo } from '@/mappers/userMapper'
 import { updateMatchStatus } from '@/services/matchService'
 import { findQuizzesBySetId } from '@/services/quizService'
@@ -15,7 +13,7 @@ import { useUserStore } from '@/stores/user'
 import { preloadImages } from '@/utils/preloadImages'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
-import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeMount, ref } from 'vue'
 
 interface UseChallengePreparationOptions {
   matchId: string | string[]
@@ -29,30 +27,13 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
   const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const revengeStore = useRevengeStore()
-  const { cancelTimeout, scheduleTimeout } = useDisposableTimers()
   const { userInfo, opponentInfo, myCurrentId } = storeToRefs(userStore)
-  const { matchData } = storeToRefs(matchStore)
   const imageUrlList = ref<string[]>([])
-  const areQuizImagesReady = ref(false)
-  let navigationTimer: ReturnType<typeof setTimeout> | null = null
-  let hasScheduledNavigation = false
 
   usePageGuard({
     onReloadAttempt: () => {
       globalStore.setIsBackToLoginModalOpen(true)
     },
-  })
-
-  const navigationReady = computed(() => {
-    const isAiOpponent = matchStore.matchData.opponentType === 'ai'
-    return Boolean(
-      userInfo.value.userId &&
-        matchData.value.matchId &&
-        matchData.value.quizSetId &&
-        areQuizImagesReady.value &&
-        roundStore.myRoundList.length === 0 &&
-        (!isAiOpponent || roundStore.aiResponseList.length > 0),
-    )
   })
 
   async function markMatchInProgress() {
@@ -121,27 +102,11 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       } else {
         await preloadPromise
       }
-
-      areQuizImagesReady.value = true
     } catch (error) {
       // console.error('[loadQuizData] failed:', error)
       throw error
     }
   }
-
-  watch(
-    navigationReady,
-    (ready) => {
-      if (!ready || hasScheduledNavigation) return
-
-      hasScheduledNavigation = true
-      navigationTimer = scheduleTimeout(() => {
-        navigationTimer = null
-        safePush({ path: `/round-start/${matchId}`, state: { allowLeave: true } })
-      }, START_CHALLENGE_DURATION_MS)
-    },
-    { immediate: true },
-  )
 
   onBeforeMount(async () => {
     try {
@@ -154,10 +119,6 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
     } catch {
       // console.error('[useChallengePreparation] failed:', error)
     }
-  })
-
-  onBeforeUnmount(() => {
-    cancelTimeout(navigationTimer)
   })
 
   return { userInfo, opponentInfo }

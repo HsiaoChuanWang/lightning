@@ -43,8 +43,8 @@ export function useRematch(matchId: string | string[]) {
     const hasExistingMatch = await enterExistingMatch(playerOneId)
 
     if (hasExistingMatch) {
-      await persistRevengeStatus(matchId, 'rejected')
-      revengeStore.updateRevengeStatus('rejected')
+      revengeStore.updateRevengeStatus('matched')
+      globalStore.setIsPlayAgainModalOpen(false)
       return
     }
 
@@ -56,6 +56,11 @@ export function useRematch(matchId: string | string[]) {
       quizSetId,
       isComplete: false,
       status: 'matched',
+      currentRound: 1,
+      phase: 'entry_banner',
+      phaseStartedAt: '',
+      phaseDeadlineAt: '',
+      flowCompletedAt: null,
     })
     await insertMatch({
       matchId: revengeId,
@@ -78,7 +83,8 @@ export function useRematch(matchId: string | string[]) {
 
       if (!existing) return
 
-      revengeStore.updateRevengeStatus('matched')
+      // 雙方同時發出邀請時，只由碰到既有 pending 邀請的一方建立新 Match。
+      // Match 寫入成功後才發布 matched，確保另一方收到 Realtime 時已能讀取新 Match。
       await createRematch(
         existing.from_user_id,
         existing.to_user_id,
@@ -86,22 +92,33 @@ export function useRematch(matchId: string | string[]) {
         getRandomQuizSetId(),
         existing.revenge_id,
       )
+      await persistRevengeStatus(matchId, 'matched')
+      revengeStore.updateRevengeStatus('matched')
     } catch {
       // console.error('[sendRematchRequest] failed:', error)
     }
   }
 
   async function handlePlayAgain() {
+    // 先寫入本地邀請者資料再開啟 Modal，避免 Realtime 回來前被誤判成受邀者，
+    // 造成 PLAY AGAIN? 與 Pending 兩套文案在畫面上短暫切換。
+    revengeStore.setRevengeInfo({
+      revengeId: '',
+      fromUserId: userInfo.value.userId,
+      toUserId: opponentInfo.value.opponentId,
+      matchId: String(matchId),
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+    })
     globalStore.setIsPlayAgainModalOpen(true)
     await sendRematchRequest()
   }
 
   async function replyPlayAgainRequest(status: RevengeStatus) {
     try {
-      await persistRevengeStatus(matchId, status)
-      revengeStore.updateRevengeStatus(status)
-
       if (status === 'matched') {
+        // 必須先建立新 Match，最後才更新邀請狀態；另一方收到 matched Realtime 時，
+        // 才能立即載入同一筆 Match 並安全進入 StartChallenge。
         await createRematch(
           revengeStore.revengeInfo.fromUserId,
           revengeStore.revengeInfo.toUserId,
@@ -109,8 +126,13 @@ export function useRematch(matchId: string | string[]) {
           getRandomQuizSetId(),
           revengeStore.revengeInfo.revengeId,
         )
+        await persistRevengeStatus(matchId, status)
+        revengeStore.updateRevengeStatus(status)
         return
       }
+
+      await persistRevengeStatus(matchId, status)
+      revengeStore.updateRevengeStatus(status)
 
       scheduleTimeout(() => {
         globalStore.setIsPlayAgainModalOpen(false)

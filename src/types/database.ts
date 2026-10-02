@@ -1,4 +1,4 @@
-import type { OpponentType } from '@/stores/match'
+import type { MatchPhase, MatchStatus, OpponentType } from '@/stores/match'
 import type { RevengeStatus } from '@/stores/revenge'
 
 export interface MatchRecord {
@@ -7,6 +7,13 @@ export interface MatchRecord {
   player_two_id: string
   opponent_type: OpponentType
   quiz_set_id: number
+  status: MatchStatus
+  current_round: number
+  phase: MatchPhase
+  phase_started_at: string
+  phase_deadline_at: string
+  flow_completed_at: string | null
+  winner_id: string | null
 }
 
 export interface MatchUsersRecord {

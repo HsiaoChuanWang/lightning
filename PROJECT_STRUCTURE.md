@@ -19,6 +19,7 @@ Lightning/
 │  │  └─ ui-components/                      # Button、Input、Modal 等基礎 UI 元件
 │  ├─ composables/
 │  │  ├─ useDisposableTimers.ts              # 統一清理 timer、動畫影格與可取消 delay
+│  │  ├─ useMatchFlowSync.ts                  # 唯讀同步 Supabase phase、資料與對應頁面
 │  │  └─ usePageGuard.ts                     # 跨頁面共用的路由保護與安全導頁流程
 │  ├─ config/
 │  │  ├─ app.ts                              # 版本等應用程式設定
@@ -71,6 +72,8 @@ Lightning/
 │  │     └─ StartChallengeView.vue
 │  ├─ App.vue
 │  └─ main.ts
+├─ supabase/
+│  └─ migrations/                            # Match 後端狀態機、時間設定與 Cron
 ├─ .env.local
 ├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
 ├─ env.d.ts

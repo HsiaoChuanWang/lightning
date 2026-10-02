@@ -44,6 +44,7 @@ export async function sendRevengeRequest({
   if (selectError) throw selectError
   if (!existing || existing.status !== 'pending') return null
 
-  await updateRevengeStatus(matchId, 'matched')
+  // 同一場比賽已經有 pending 邀請，代表雙方同時按下 Play again；
+  // 只回傳既有邀請，由呼叫端先建立新 Match，再把邀請更新為 matched。
   return existing
 }

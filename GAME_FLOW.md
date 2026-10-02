@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | `matchingState` | `useOpponentMatching.ts` | 單次「尋找對手」操作的暫時狀態，僅存在 Login 頁面 |
 | `matchData.status` | `stores/match.ts` | 已建立 Match 的業務狀態，可跨頁面使用並同步至資料庫 |
+| `matchData.phase` | `stores/match.ts` | Supabase 控制的遊戲階段，前端只能讀取並依此顯示或導頁 |
 | `isMatchCanceled` | `stores/match.ts` | Loading Modal 發出的配對取消訊號 |
 | Round fields | `stores/round.ts` | 每回合建立、作答、分數及提交時間 |
 | `revengeInfo.status` | `stores/revenge.ts` | 再戰邀請的狀態 |
@@ -35,14 +36,14 @@ flowchart TD
     Challenge -->|載入玩家、題目及 AI 答案| RoundStart[RoundStartView]
     Challenge -->|無法準備或返回首頁| Login
 
-    RoundStart -->|雙方 Round 就緒| Game[GameView]
+    RoundStart -->|後端 phase 進入 answering| Game[GameView]
     RoundStart -->|逾時、建立失敗或離線| Login
 
-    Game -->|雙方提交或時間到| RoundResult[RoundResultView]
+    Game -->|後端作答期限到達| RoundResult[RoundResultView]
     Game -->|提交失敗或離開遊戲| Login
 
-    RoundResult -->|尚有下一回合| RoundStart
-    RoundResult -->|最後一回合| GameResult[GameResultView]
+    RoundResult -->|後端 current_round 遞增| RoundStart
+    RoundResult -->|後端 phase 進入 game_result| GameResult[GameResultView]
 
     GameResult -->|Back to Home| Login
     GameResult -->|真人再戰成功| Challenge
@@ -79,9 +80,9 @@ stateDiagram-v2
 
 配對來源依序為：
 
-1. 真人 RPC 輪詢 `match_users`。
+1. 真人 RPC 輪詢 `match_users`，最多 10 秒。
 2. `matches` Realtime INSERT；分別依 `player_one_id`、`player_two_id` 訂閱目前玩家。
-3. 真人搜尋逾時後，尋找已完成的歷史對局作為 Phantom。
+3. 真人搜尋逾時後，以最多 10 秒尋找已完成的歷史對局作為 Phantom。
 4. 找不到 Phantom 時建立 AI 對手。
 
 所有來源最後都必須經過 `acceptMatch()`：
@@ -129,14 +130,36 @@ stateDiagram-v2
 - `abandoned`：進行中離開，或等待另一位玩家建立 Round 逾時。
 - `none`：目前沒有有效 Match。
 
+### Match phase 與後端時間軸
+
+```text
+entry_banner
+→ start_challenge
+→ round_intro
+→ question_preview
+→ answer_preparing
+→ answering
+→ answer_reveal
+→ round_result
+→ 下一回合或 game_result
+```
+
+各階段時間集中在 `game_flow_settings`。`matches.phase_started_at` 與 `matches.phase_deadline_at` 保存資料庫絕對時間，Supabase Cron 每秒執行 `advance_due_matches()`；瀏覽器分頁被節流時，後端仍會建立回合、處理逾時空答案並推進 Match。
+
+`entry_banner` 為 3.6 秒。進入 `start_challenge` 後，先顯示自己的玩家 Banner，
+再顯示對手的玩家 Banner；對手 Banner 完整出現後停留 3 秒，才進入下一頁。
+
+進入 `answer_preparing` 後會先 render Game；連續完成兩個 animation frame 後，前端只呼叫一次 `start_answering_after_render()`，由資料庫當下時間開始完整 10 秒 `answering`。若瀏覽器沒有執行，Cron 仍會在準備期限後自動開始，不會阻擋整場流程。
+
+`useMatchFlowSync.ts` 只訂閱和讀取 Match，不呼叫 `advance_match_flow()`。遺漏 Realtime 時會在 deadline 後最多低頻重讀三次，並在分頁恢復可見時同步，避免形成無限 API 請求。
+
 ## 3. Start Challenge 準備流程
 
 `useChallengePreparation.ts` 依序執行：
 
 ```mermaid
 flowchart TD
-    Start[進入 StartChallengeView] --> Status[Match 改為 in_progress]
-    Status --> Users[載入雙方 User]
+    Start[進入 StartChallengeView] --> Users[載入雙方 User]
     Users --> Quiz[依 quizSetId 載入題目]
     Quiz --> Type{Opponent Type}
     Type -->|human 或 phantom| Reset[清空前一場 Round 與 Revenge]
@@ -144,39 +167,35 @@ flowchart TD
     Images -->|成功| Reset
     Images -->|失敗| Fallback[使用 preparedAiAnswer]
     Fallback --> Reset
-    Reset --> Ready{navigationReady}
-    Ready -->|玩家、Match、題目與 AI 資料就緒| Delay[等待 Start Challenge 動畫]
-    Delay --> RoundStart[前往 RoundStartView]
+    Reset --> Wait[等待後端 phase]
+    Wait -->|phase = round_intro| RoundStart[前往 RoundStartView]
 ```
 
-AI 對手不從 users table 讀取，而是在前端建立顯示用的 opponent info。離開頁面時會取消尚未執行的導頁 timer。
+AI 對手不從 users table 讀取，而是在前端建立顯示用的 opponent info。Start Challenge 不再建立本機導頁 timer。
 
 ## 4. 回合準備
 
-`RoundStartView` 以 `myRoundList.length + 1` 決定下一回合，`useRoundPreparation.ts` 負責建立自己的 Round，再等待對手資料。
+`RoundStartView` 以 `matchData.currentRound` 決定目前回合。Round 由後端進入 `round_intro` 時建立；前端只準備目前畫面所需的真人、Phantom 或 AI 對手資料。
 
 ```mermaid
 stateDiagram-v2
     [*] --> roundTitle
-    roundTitle --> questionPreview: Round 標題時間結束
-    questionPreview --> waitingForRounds: 題目預覽時間結束
-    waitingForRounds --> ready: 自己與對手 Round 就緒
-    waitingForRounds --> abandoned: 等待逾時
-    ready --> [*]: 前往 GameView
-    abandoned --> [*]: Match 標記 abandoned 並返回首頁
+    roundTitle --> questionPreview: phase = question_preview
+    questionPreview --> answering: phase = answering
+    answering --> [*]: 前往 GameView
 ```
 
 不同對手的就緒條件：
 
 | 對手類型 | Round 準備方式 |
 | --- | --- |
-| `human` | 輪詢自己與真人對手的 Round，兩筆都存在才繼續 |
-| `phantom` | 等自己的 Round 建立後，從歷史 Round 建立對手初始資料 |
-| `ai` | 等自己的 Round 建立後，在前端建立 AI 初始 Round |
+| `human` | 後端同時建立雙方 Round；前端讀取兩筆資料 |
+| `phantom` | 後端建立自己的 Round，前端從歷史 Round 建立對手顯示資料 |
+| `ai` | 後端建立自己的 Round，前端建立 AI 顯示資料 |
 
 ## 5. 作答與 Round 結束
 
-`useRoundGameplay.ts` 同時管理倒數、提交、對手提交、分數動畫與結果頁導覽。
+`useRoundGameplay.ts` 管理倒數顯示、提交、對手提交與分數動畫；結果頁導覽由 Match phase 控制。
 
 ```mermaid
 stateDiagram-v2
@@ -185,10 +204,9 @@ stateDiagram-v2
     readyToAnswer --> submitting: 作答時間歸零，自動提交空答案
     answering --> submitting: 玩家提交或時間歸零
     submitting --> waitingForOpponent: 寫入 input、score、bonus、submittedAt
-    waitingForOpponent --> finishing: 雙方已提交
-    waitingForOpponent --> finishing: 時間到且自己已提交
+    waitingForOpponent --> finishing: phase = answer_reveal
     finishing --> answerReveal: 同步對手資料並顯示答案
-    answerReveal --> [*]: 分數動畫後前往 RoundResultView
+    answerReveal --> [*]: phase = round_result
 ```
 
 計分流程：
@@ -210,14 +228,12 @@ stateDiagram-v2
 ```mermaid
 flowchart TD
     Result[進入 RoundResultView] --> Score[顯示本回合與累積分數]
-    Score --> More{currentRound 小於 TOTAL_ROUNDS}
-    More -->|是| Next[延遲後前往下一個 RoundStartView]
-    More -->|否| Abandoned{Match 是否 abandoned}
-    Abandoned -->|是| Finish[保留 abandoned，不更新戰績]
-    Abandoned -->|否| Complete[Match 改為 completed]
-    Complete --> Stats[更新勝負與 totalMatches]
-    Finish --> GameResult[前往 GameResultView]
-    Stats --> GameResult
+    Score --> Wait[等待後端 phase_deadline_at]
+    Wait --> More{current_round 小於 5}
+    More -->|是| Next[後端建立下一 Round 並遞增 current_round]
+    More -->|否| Complete[後端完成 Match 與原子更新戰績]
+    Next --> RoundStart[前往 RoundStartView]
+    Complete --> GameResult[前往 GameResultView]
 ```
 
 勝者由雙方 Round 的累積 `score + bonus` 比較；相同則 `winnerId` 為 `null`，畫面顯示 Tie。

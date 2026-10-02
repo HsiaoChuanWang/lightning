@@ -3,6 +3,16 @@ import { ref } from 'vue'
 
 export type OpponentType = 'human' | 'phantom' | 'ai'
 export type MatchStatus = 'none' | 'matched' | 'in_progress' | 'completed' | 'abandoned'
+export type MatchPhase =
+  | 'entry_banner'
+  | 'start_challenge'
+  | 'round_intro'
+  | 'question_preview'
+  | 'answer_preparing'
+  | 'answering'
+  | 'answer_reveal'
+  | 'round_result'
+  | 'game_result'
 
 export interface Match {
   matchId: string
@@ -12,6 +22,11 @@ export interface Match {
   quizSetId: number
   status: MatchStatus
   isComplete: boolean
+  currentRound: number
+  phase: MatchPhase
+  phaseStartedAt: string
+  phaseDeadlineAt: string
+  flowCompletedAt: string | null
 }
 
 export const useMatchStore = defineStore('match', () => {
@@ -27,6 +42,11 @@ export const useMatchStore = defineStore('match', () => {
     quizSetId: 0,
     status: 'none',
     isComplete: false,
+    currentRound: 1,
+    phase: 'entry_banner',
+    phaseStartedAt: '',
+    phaseDeadlineAt: '',
+    flowCompletedAt: null,
   })
 
   function setIsMatchCanceled(isCanceled: boolean) {
@@ -57,6 +77,11 @@ export const useMatchStore = defineStore('match', () => {
       quizSetId: 0,
       status: 'none',
       isComplete: false,
+      currentRound: 1,
+      phase: 'entry_banner',
+      phaseStartedAt: '',
+      phaseDeadlineAt: '',
+      flowCompletedAt: null,
     }
   }
 
