@@ -1,23 +1,30 @@
 // describe-image.js
 import { GoogleGenerativeAI } from '@google/generative-ai'
-import cors from 'cors'
 import express from 'express'
+import {
+  fetchTrustedImage,
+  ImageRequestError,
+  validateImageRequest,
+} from '../shared/secureImageFetch.js'
 
 const app = express()
 
-app.use(cors())
-app.use(express.json({ limit: '20mb' }))
+// 這裡限制的是前端送進 API 的 JSON request body，不是圖片檔案本身。
+// request body 只包含最多 2,000 字的 prompt 與 5 個圖片網址，100 KB 已足夠；
+// 圖片會由伺服器另外向 Supabase Storage 下載，並在下載時套用每張 5 MB 的獨立限制。
+// 可讓 Express 在進入 Gemini 流程前先拒絕異常大的請求，避免記憶體被濫用。
+app.use(express.json({ limit: '100kb' }))
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
 app.post('/api/describe-image', async (req, res) => {
   const { prompt, imageList } = req.body
 
-  if (!prompt || !Array.isArray(imageList) || imageList.length === 0) {
-    return res.status(400).json({ error: '缺少 prompt 或 imageList' })
-  }
-
   try {
+    // 在呼叫 Gemini 或下載圖片前，先確認 prompt 長度、圖片數量及每個網址欄位的基本格式，
+    // 避免無效或刻意放大的輸入繼續消耗 Gemini 額度與伺服器資源。
+    validateImageRequest(prompt, imageList)
+
     const model = genAI.getGenerativeModel({
       model: 'gemini-2.0-flash-lite',
       generationConfig: {
@@ -35,26 +42,30 @@ app.post('/api/describe-image', async (req, res) => {
     const contents = [{ text: prompt }]
 
     // 每張圖片都轉成 inlineData
-    for (const imgUrl of imageList) {
-      const response = await fetch(imgUrl)
-      const imageArrayBuffer = await response.arrayBuffer()
-      const base64ImageData = Buffer.from(imageArrayBuffer).toString('base64')
+    // 轉換前會確認網址來自目前專案的 Supabase、DNS 沒有指向私人網路，
+    // 並檢查下載逾時、重新導向、HTTP 狀態、圖片格式及實際檔案大小。
+    for (const imageUrl of imageList) {
+      const image = await fetchTrustedImage(imageUrl)
 
       contents.push({
         inlineData: {
-          mimeType: 'image/jpeg', // 或 'image/png'
-          data: base64ImageData,
+          mimeType: image.mimeType,
+          data: image.data,
         },
       })
     }
 
     const result = await model.generateContent(contents)
-    const text = result.response.text()
+    return res.json({ text: result.response.text() })
+  } catch (error) {
+    // ImageRequestError 代表已預期且可安全公開的驗證錯誤，因此保留對應 HTTP 狀態與訊息；
+    // 其他未知錯誤仍統一回傳 500，避免把伺服器或 Gemini 的內部資訊暴露給呼叫端。
+    if (error instanceof ImageRequestError) {
+      return res.status(error.statusCode).json({ error: error.message })
+    }
 
-    res.json({ text })
-  } catch (err) {
-    console.error('Gemini API Error:', err)
-    res.status(500).json({ error: 'Something went wrong' })
+    console.error('Gemini API Error:', error)
+    return res.status(500).json({ error: 'Something went wrong' })
   }
 })
 

@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.4] - 2026-10-02
+
+### Changed
+
+- Secure image description requests with Supabase-only URLs, a five-image limit, HTTPS and DNS validation, blocked redirects, download timeouts, MIME and 5 MB size checks, and a 100 KB request body limit
+
 ## [0.16.3] - 2026-10-01
 
 ### Changed
