@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Secure image description requests with Supabase-only URLs, a five-image limit, HTTPS and DNS validation, blocked redirects, download timeouts, MIME and 5 MB size checks, and a 100 KB request body limit
+- Preload all quiz images after fetching the quiz set and wait for preloading before entering the first round
 
 ## [0.16.3] - 2026-10-01
 

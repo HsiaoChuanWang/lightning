@@ -12,6 +12,7 @@ import { useQuizStore } from '@/stores/quiz'
 import { useRevengeStore } from '@/stores/revenge'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
+import { preloadImages } from '@/utils/preloadImages'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { computed, onBeforeMount, onBeforeUnmount, ref, watch } from 'vue'
@@ -32,6 +33,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
   const { userInfo, opponentInfo, myCurrentId } = storeToRefs(userStore)
   const { matchData } = storeToRefs(matchStore)
   const imageUrlList = ref<string[]>([])
+  const areQuizImagesReady = ref(false)
   let navigationTimer: ReturnType<typeof setTimeout> | null = null
   let hasScheduledNavigation = false
 
@@ -47,6 +49,7 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       userInfo.value.userId &&
         matchData.value.matchId &&
         matchData.value.quizSetId &&
+        areQuizImagesReady.value &&
         roundStore.myRoundList.length === 0 &&
         (!isAiOpponent || roundStore.aiResponseList.length > 0),
     )
@@ -101,16 +104,25 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
     try {
       const quizzes = await findQuizzesBySetId(matchStore.matchData.quizSetId)
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+      const quizImageUrls = quizzes.map((quiz) => supabaseUrl + quiz.imageUrl)
 
       if (matchStore.matchData.opponentType === 'ai') {
-        imageUrlList.value = quizzes.map((quiz) => supabaseUrl + quiz.imageUrl)
+        imageUrlList.value = quizImageUrls
       }
 
       quizStore.setQuizList(quizzes)
 
+      // 題庫資料只包含圖片網址；在進入 RoundStart 前先完成實際圖片下載。
+      const preloadPromise = preloadImages(quizImageUrls)
+
       if (matchStore.matchData.opponentType === 'ai') {
-        await loadAiResponses()
+        // 瀏覽器預載圖片與後端產生 AI 描述可同時進行，避免增加等待時間。
+        await Promise.all([preloadPromise, loadAiResponses()])
+      } else {
+        await preloadPromise
       }
+
+      areQuizImagesReady.value = true
     } catch (error) {
       // console.error('[loadQuizData] failed:', error)
       throw error
