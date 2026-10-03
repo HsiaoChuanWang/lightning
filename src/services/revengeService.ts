@@ -2,6 +2,20 @@ import { supabase } from '@/lib/supabaseClient'
 import type { RevengeStatus } from '@/stores/revenge'
 import type { RevengeRecord } from '@/types/database'
 
+/** 讀取目前再戰邀請，供五秒回覆期限結束時確認它是否仍為 pending。 */
+export async function findRevengeRequest(
+  matchId: string | string[],
+): Promise<RevengeRecord | null> {
+  const { data, error } = await supabase
+    .from('revenge_requests')
+    .select('*')
+    .eq('match_id', matchId)
+    .maybeSingle()
+
+  if (error) throw new Error('[findRevengeRequest] 查詢再戰邀請失敗：' + error.message)
+  return data
+}
+
 export async function updateRevengeStatus(
   matchId: string | string[],
   status: RevengeStatus,

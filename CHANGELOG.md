@@ -13,6 +13,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.6] - 2026-10-03
+
+### Added
+
+- Add a five-second rematch response timeout with a clear message when the opponent is unavailable
+
+### Fixed
+
+- Clear all game session state before returning home to prevent stale match data and redirects
+
+### Changed
+
+- Centralize post-game session cleanup across home, canceled, rejected, and timed-out rematch flows
+
 ## [0.16.5] - 2026-10-03
 
 ### Added

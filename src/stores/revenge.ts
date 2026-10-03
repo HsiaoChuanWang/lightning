@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled'
+export type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled' | 'unavailable'
 
 export interface RevengeInfo {
   revengeId: string

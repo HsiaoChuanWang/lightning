@@ -8,7 +8,8 @@ import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
 import { useRevengeStore } from '@/stores/revenge'
 import type { RevengeRecord } from '@/types/database'
-import { allowNextNavigationOnce, safePush } from '@/composables/usePageGuard'
+import { clearGameSession } from '@/utils/gameSession'
+import { safePush } from '@/composables/usePageGuard'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { onBeforeUnmount, onMounted } from 'vue'
 
@@ -58,6 +59,12 @@ export function useRevengeRealtime(matchId: string | string[]) {
         },
         (payload) => {
           const response = payload.new
+
+          // 本機因五秒未回覆而顯示 unavailable 時，資料庫會把邀請取消以避免留下
+          // 過期 pending；忽略自己收到的 canceled 事件，保留正確的逾時通知文案。
+          if (response.status === 'canceled' && revengeStore.revengeInfo.status === 'unavailable')
+            return
+
           revengeStore.setRevengeInfo(toRevengeInfo(response as RevengeRecord))
 
           if (response.status === 'pending') {
@@ -79,9 +86,8 @@ export function useRevengeRealtime(matchId: string | string[]) {
 
           if (response.status === 'rejected' || response.status === 'canceled') {
             scheduleTimeout(() => {
-              globalStore.setIsPlayAgainModalOpen(false)
-              allowNextNavigationOnce()
-              safePush(`/`)
+              clearGameSession()
+              safePush('/')
             }, REMATCH_RESULT_DELAY_MS)
           }
         },

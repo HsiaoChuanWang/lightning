@@ -1,8 +1,9 @@
-import { REMATCH_RESULT_DELAY_MS } from '@/config/timing'
+import { REMATCH_RESPONSE_TIMEOUT_MS, REMATCH_RESULT_DELAY_MS } from '@/config/timing'
 import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { toMatch } from '@/mappers/matchMapper'
 import { findMatchedMatch, insertMatch } from '@/services/matchService'
 import {
+  findRevengeRequest,
   sendRevengeRequest as persistRevengeRequest,
   updateRevengeStatus as persistRevengeStatus,
 } from '@/services/revengeService'
@@ -12,6 +13,7 @@ import { useMatchStore, type OpponentType } from '@/stores/match'
 import { useRevengeStore, type RevengeStatus } from '@/stores/revenge'
 import { useUserStore } from '@/stores/user'
 import { getRandomQuizSetId } from '@/utils/helpers'
+import { clearGameSession } from '@/utils/gameSession'
 import { storeToRefs } from 'pinia'
 
 export function useRematch(matchId: string | string[]) {
@@ -21,6 +23,28 @@ export function useRematch(matchId: string | string[]) {
   const userStore = useUserStore()
   const { scheduleTimeout } = useDisposableTimers()
   const { userInfo, opponentInfo } = storeToRefs(userStore)
+
+  /** 五秒內沒有收到任何回覆時，通知邀請者對方目前無法接受再戰。 */
+  function scheduleRematchResponseTimeout() {
+    scheduleTimeout(async () => {
+      try {
+        const request = await findRevengeRequest(matchId)
+        if (!request || request.status !== 'pending') return
+
+        // 先切換本地文案，再取消資料庫邀請；避免自己的 canceled Realtime
+        // 把「對方無法接受」覆蓋成一般的「邀請已取消」。
+        revengeStore.updateRevengeStatus('unavailable')
+        await persistRevengeStatus(matchId, 'canceled')
+
+        scheduleTimeout(() => {
+          clearGameSession()
+          safeReplace('/')
+        }, REMATCH_RESULT_DELAY_MS)
+      } catch {
+        // 查詢失敗時保留 Pending，避免把暫時性的網路錯誤誤判為對方正在遊戲中。
+      }
+    }, REMATCH_RESPONSE_TIMEOUT_MS)
+  }
 
   async function enterExistingMatch(userId: string): Promise<boolean> {
     const existingMatch = await findMatchedMatch(userId)
@@ -81,7 +105,10 @@ export function useRematch(matchId: string | string[]) {
         toUserId: opponentInfo.value.opponentId,
       })
 
-      if (!existing) return
+      if (!existing) {
+        scheduleRematchResponseTimeout()
+        return
+      }
 
       // 雙方同時發出邀請時，只由碰到既有 pending 邀請的一方建立新 Match。
       // Match 寫入成功後才發布 matched，確保另一方收到 Realtime 時已能讀取新 Match。
@@ -135,7 +162,7 @@ export function useRematch(matchId: string | string[]) {
       revengeStore.updateRevengeStatus(status)
 
       scheduleTimeout(() => {
-        globalStore.setIsPlayAgainModalOpen(false)
+        clearGameSession()
         safeReplace('/')
       }, REMATCH_RESULT_DELAY_MS)
     } catch {

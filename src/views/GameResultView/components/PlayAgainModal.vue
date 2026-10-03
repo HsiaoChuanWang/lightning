@@ -32,8 +32,21 @@ const modalData = computed(() => {
       actions: [{ text: 'Cancel', colorTheme: 'neutral', status: 'canceled' }],
     },
     matched: { title: 'Matched', description: 'The opponent has accepted', actions: [] },
-    rejected: { title: 'Rejected', description: 'The opponent rejected your challenge', actions: [] },
-    canceled: { title: 'Canceled', description: 'The rematch request has been canceled', actions: [] },
+    rejected: {
+      title: 'Rejected',
+      description: 'The opponent rejected your challenge',
+      actions: [],
+    },
+    canceled: {
+      title: 'Canceled',
+      description: 'The rematch request has been canceled',
+      actions: [],
+    },
+    unavailable: {
+      title: 'Unavailable',
+      description: 'The opponent is already matchmaking or playing another game',
+      actions: [],
+    },
   }
 
   const invitedMap: Record<
@@ -52,7 +65,16 @@ const modalData = computed(() => {
     },
     matched: { title: 'Matched', description: 'The match is starting soon', actions: [] },
     rejected: { title: 'Rejected', description: 'The opponent has rejected', actions: [] },
-    canceled: { title: 'Canceled', description: 'The opponent canceled the rematch request', actions: [] },
+    canceled: {
+      title: 'Canceled',
+      description: 'The opponent canceled the rematch request',
+      actions: [],
+    },
+    unavailable: {
+      title: 'Unavailable',
+      description: 'The opponent is already matchmaking or playing another game',
+      actions: [],
+    },
   }
 
   return (props.isInviter ? initiatorMap : invitedMap)[props.status]
