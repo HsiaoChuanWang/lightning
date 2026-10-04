@@ -56,7 +56,32 @@ app.post('/api/describe-image', async (req, res) => {
     }
 
     const result = await model.generateContent(contents)
-    return res.json({ text: result.response.text() })
+    const responseText = result.response.text()
+    let descriptions
+
+    // 防止 Gemini 傳入非 JSON 的內容。
+    try {
+      descriptions = JSON.parse(responseText)
+    } catch {
+      return res.status(502).json({
+        code: 'INVALID_GEMINI_PAYLOAD',
+        error: 'Gemini returned invalid JSON',
+      })
+    }
+
+    // 檢查圖片描述的數量與資料型別。
+    if (
+      !Array.isArray(descriptions) ||
+      descriptions.length !== imageList.length ||
+      !descriptions.every((description) => typeof description === 'string')
+    ) {
+      return res.status(502).json({
+        code: 'INVALID_GEMINI_PAYLOAD',
+        error: 'Gemini returned invalid image descriptions',
+      })
+    }
+
+    return res.json({ descriptions })
   } catch (error) {
     // ImageRequestError 代表已預期且可安全公開的驗證錯誤，因此保留對應 HTTP 狀態與訊息；
     // 其他未知錯誤仍統一回傳 500，避免把伺服器或 Gemini 的內部資訊暴露給呼叫端。
@@ -65,7 +90,7 @@ app.post('/api/describe-image', async (req, res) => {
     }
 
     console.error('Gemini API Error:', error)
-    return res.status(500).json({ error: 'Something went wrong' })
+    return res.status(500).json({ code: 'GEMINI_FAILURE', error: 'Something went wrong' })
   }
 })
 

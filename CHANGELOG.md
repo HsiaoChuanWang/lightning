@@ -24,10 +24,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Restore missing database users from their cached local UUID when logging in
 - Stop failed or abandoned games from continuing to later screens
+- Reject invalid vector and image description API responses before using them
 
 ### Changed
 
 - Separate error logging from fatal game cleanup and retry temporary synchronization failures
+- Rename the scoring service to the AI API service, simplify responses, and classify API errors
 
 ## [0.16.6] - 2026-10-03
 
