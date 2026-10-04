@@ -95,15 +95,14 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
 
     if (opponentRound) {
       if (!opponentRound.submittedAt) {
-        roundStore.updateOpponentCurrentRoundData({
-          ...opponentRound,
+        roundStore.updateOpponentRoundData(currentRound, {
           submittedAt,
         })
       }
     } else {
       // 正常流程會預先建立對手 Round；若重新整理或背景恢復時資料尚未補齊，
       // 先建立只供畫面使用的提交狀態，避免仍顯示 Typing 後就直接出現 Banner。
-      roundStore.updateOpponentRoundList({
+      roundStore.setOpponentRoundData({
         roundId: uuidv4(),
         round: currentRound,
         input: '',
@@ -180,7 +179,7 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       const submittedAt = new Date().toISOString()
       const bonus = calcBonus(timeTakenMs)
 
-      roundStore.updateMyCurrentRoundData({
+      roundStore.updateMyRoundData(currentRound, {
         input: inputValue.value,
         score: newScore,
         bonus,
@@ -208,12 +207,12 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
     if (!isActive()) return
 
     if (opponentRoundData) {
-      roundStore.updateOpponentCurrentRoundData(opponentRoundData)
+      roundStore.setOpponentRoundData(opponentRoundData)
       return
     }
 
     // console.warn('[getOpponentRoundData] 找不到對方 round，補一筆空資料到 pinia')
-    roundStore.updateOpponentCurrentRoundData({
+    roundStore.setOpponentRoundData({
       roundId: uuidv4(),
       round: currentRound,
       input: '',
@@ -253,18 +252,9 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
 
   async function handleSubmit() {
     isButtonDisabled.value = true
-    const now = Date.now()
-    const timeTakenMs = gameStartTime.value ? Math.max(now - gameStartTime.value, 0) : 0
     const newScore = await getVector(inputValue.value)
     if (!isActive()) return
 
-    roundStore.updateMyCurrentRoundData({
-      input: inputValue.value,
-      score: newScore,
-      bonus: calcBonus(timeTakenMs),
-      timeTakenMs,
-      submittedAt: new Date().toISOString(),
-    })
     try {
       await updateMyRound(newScore ?? 0)
     } catch (error) {
@@ -284,7 +274,8 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       const delay = phantomData?.timeTakenMs ?? AI_MAX_RESPONSE_TIME_MS
 
       scheduleTimeout(() => {
-        roundStore.updateOpponentCurrentRoundData({
+        if (!phantomData) return
+        roundStore.setOpponentRoundData({
           ...phantomData,
           submittedAt: new Date().toISOString(),
         })
@@ -304,7 +295,7 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       }
 
       if (!isActive()) return
-      scheduleTimeout(() => roundStore.updateOpponentCurrentRoundData(aiRound), aiTimeTakenMs)
+      scheduleTimeout(() => roundStore.setOpponentRoundData(aiRound), aiTimeTakenMs)
     }
   }
 

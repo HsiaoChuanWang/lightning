@@ -111,7 +111,7 @@ export function useMatchFlowSync() {
 
     quizStore.setQuizList(quizzes)
     roundStore.resetRoundList()
-    for (const round of myRounds) roundStore.updateRoundList(round)
+    for (const round of myRounds) roundStore.setMyRoundData(round)
 
     const me = users.find((user) => user.user_id === myUserId)
     const opponent = users.find((user) => user.user_id === opponentId)
@@ -124,7 +124,7 @@ export function useMatchFlowSync() {
     if (record.opponent_type === 'human') {
       const opponentRounds = await findRounds(record.match_id, opponentId)
       roundStore.resetOpponentRoundList()
-      for (const round of opponentRounds) roundStore.updateOpponentRoundList(round)
+      for (const round of opponentRounds) roundStore.setOpponentRoundData(round)
     }
 
     if (record.opponent_type === 'ai') {

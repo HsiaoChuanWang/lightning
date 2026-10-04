@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Separate error logging from fatal game cleanup and retry temporary synchronization failures
 - Rename the scoring service to the AI API service, simplify responses, and classify API errors
+- Update Round Store data by explicit round number and replace duplicate local rounds
 
 ## [0.16.6] - 2026-10-03
 

@@ -42,7 +42,7 @@ export function useOpponentRoundRealtime({
             record.match_id === matchId && record.user_id === opponentId && record.round === round
 
           if (!belongsToCurrentRound) return
-          roundStore.updateOpponentCurrentRoundData(toRound(record))
+          roundStore.setOpponentRoundData(toRound(record))
         },
       )
       .subscribe()
