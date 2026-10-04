@@ -29,6 +29,9 @@ const props = withDefaults(defineProps<ButtonComponentProps>(), {
   height: '48px',
 })
 
+//子傳父，payload 是 handleClick 的 event
+const emit = defineEmits<{ (event: 'click', payload: MouseEvent): void }>()
+
 const colorMap: Record<ColorKey, ColorMap> = {
   neutral: {
     bg: 'var(--color-neutral-300)',
@@ -66,9 +69,6 @@ const colorMap: Record<ColorKey, ColorMap> = {
 }
 
 const theme = computed(() => colorMap[props.colorTheme])
-
-//子傳父，payload 是 handleClick 的 event
-const emit = defineEmits<{ (event: 'click', payload: MouseEvent): void }>()
 
 function handleClick(event: MouseEvent) {
   if (!props.isDisabled) {

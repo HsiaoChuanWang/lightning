@@ -1,0 +1,6 @@
+export const TOTAL_ROUNDS = 5
+export const ANSWER_TIME_SECONDS = 10
+export const ANSWER_CHAR_LIMIT = 300
+export const MATCH_LOADING_TIMEOUT_SECONDS = 30
+export const MAX_CUMULATIVE_SCORE = 520
+export const AI_MAX_RESPONSE_TIME_MS = 10_000

@@ -13,6 +13,126 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.8] - 2026-10-04
+
+### Changed
+
+- Upgrade the Node.js runtime to 24.x for Vercel deployments
+
+## [0.16.7] - 2026-10-04
+
+### Added
+
+- Add opponent disconnect detection for human matches without affecting match records
+- Add a shared failure flow to abandon broken matches, show an error, and return to login
+
+### Fixed
+
+- Restore missing database users from their cached local UUID when logging in
+- Stop failed or abandoned games from continuing to later screens
+- Reject invalid vector and image description API responses before using them
+
+### Changed
+
+- Separate error logging from fatal game cleanup and retry temporary synchronization failures
+- Rename the scoring service to the AI API service, simplify responses, and classify API errors
+- Update Round Store data by explicit round number and replace duplicate local rounds
+
+## [0.16.6] - 2026-10-03
+
+### Added
+
+- Add a five-second rematch response timeout with a clear message when the opponent is unavailable
+- Add a shared error modal for clear user-facing failure messages
+
+### Fixed
+
+- Clear all game session state before returning home to prevent stale match data and redirects
+- Restore loading, modal, and processing states when matchmaking, match preparation, scoring, or rematch actions fail
+
+### Changed
+
+- Centralize post-game session cleanup across home, canceled, rejected, and timed-out rematch flows
+- Normalize and consistently log errors while preserving safe fallbacks such as local scoring
+
+## [0.16.5] - 2026-10-03
+
+### Added
+
+- Add a Supabase-backed match phase flow so games continue on schedule while the browser is in the background
+
+### Fixed
+
+- Fix Round countdown and reveal timing, stale GameResult redirects, and unreliable Play Again navigation between both players
+
+### Changed
+
+- Refine matchmaking, StartChallenge banners, Time's Up feedback, and rematch modal transitions for clearer timing and smoother UI
+
+## [0.16.4] - 2026-10-02
+
+### Changed
+
+- Secure image description requests with Supabase-only URLs, a five-image limit, HTTPS and DNS validation, blocked redirects, download timeouts, MIME and 5 MB size checks, and a 100 KB request body limit
+- Preload all quiz images after fetching the quiz set and wait for preloading before entering the first round
+
+## [0.16.3] - 2026-10-01
+
+### Changed
+
+- Centralize lifecycle-safe timers and polling, make RoundResult score blocks responsive from a 156px minimum, and delay final navigation by three seconds
+
+## [0.16.2] - 2026-10-01
+
+### Added
+
+- Add naming conventions and frontend/backend naming boundaries to `PROJECT_STRUCTURE.md`
+
+### Fixed
+
+- Prevent Round Realtime events from another match, opponent, or round from overwriting the current opponent Round
+
+### Changed
+
+- Filter Round Realtime subscriptions by `match_id` and validate `match_id`, `user_id`, and `round` before updating the Store
+
+## [0.16.1] - 2026-10-01
+
+### Added
+
+- Add `GAME_FLOW.md` with Mermaid diagrams for routing, matchmaking, match, round, rematch, modal, and shared Store state transitions
+
+### Fixed
+
+- Prevent unrelated `matches` INSERT events from being treated as a successful match
+- Prevent Realtime, human polling, Phantom, and AI results from completing the same matchmaking attempt more than once
+- Stop canceled or stale matchmaking operations from creating a later fallback match
+
+### Changed
+
+- Filter Match Realtime subscriptions by the current user's `player_one_id` and `player_two_id`
+- Consolidate matchmaking completion through an explicit local state and `acceptMatch()` guard
+- Link the game flow and state documentation from `PROJECT_STRUCTURE.md`
+
+## [0.16.0] - 2026-07-19
+
+### Fixed
+
+- Remove stray template literal left in LoginView.vue
+- Remove redundant abandoned-match check in RoundResultView
+
+### Changed
+
+- Extract StartChallengeView preparation flow into `useChallengePreparation` composable
+- Move hardcoded hex colors into design tokens in `variables.scss`
+- Standardize `console.error` tagging to `[functionName] failed:` across composables and services
+- Comment out client-side console logging; keep server-side logging in `api/` and `server/dev-server.js` active
+- Document StartChallengeView composables and GameResultView components in PROJECT_STRUCTURE.md
+
+### Removed
+
+- Remove dead debug `console.log` from EntryBanner
+
 ## [0.15.0] - 2026-07-15
 
 ### Added

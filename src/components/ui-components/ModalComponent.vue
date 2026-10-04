@@ -18,7 +18,7 @@ const props = defineProps<ModalComponentProps>()
 
 const { show, buttonList } = toRefs(props)
 
-const emits = defineEmits<{
+defineEmits<{
   (e: 'update:show', value: boolean): void
 }>()
 </script>

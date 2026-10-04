@@ -2,6 +2,9 @@
   "name": "lightning",
   "version": "0.0.0",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",

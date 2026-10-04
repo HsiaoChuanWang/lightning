@@ -1,16 +1,20 @@
 <script setup lang="ts">
-import { supabase } from '@/lib/supabaseClient'
+import { usePageGuard } from '@/composables/usePageGuard'
+import { MAX_CUMULATIVE_SCORE } from '@/config/game'
 import { useGlobalStore } from '@/stores/global'
-import { useMatchStore } from '@/stores/match'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
-import { safePush, usePageGuard } from '@/utils/usePageGuard'
+import { calculateCumulativeScore } from '@/utils/helpers'
 import { storeToRefs } from 'pinia'
-import { computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed } from 'vue'
 import PlayerScoreRow from './components/PlayerScoreRow.vue'
 
 const globalStore = useGlobalStore()
+const userStore = useUserStore()
+const roundStore = useRoundStore()
+
+const { userInfo, opponentInfo } = storeToRefs(userStore)
+const { myRoundList } = storeToRefs(roundStore)
 
 usePageGuard({
   onReloadAttempt: () => {
@@ -18,153 +22,13 @@ usePageGuard({
   },
 })
 
-const userStore = useUserStore()
-const matchStore = useMatchStore()
-const roundStore = useRoundStore()
-
-const { userInfo, opponentInfo } = storeToRefs(userStore)
-const { myRoundList, opponentRoundList } = storeToRefs(roundStore)
-const { matchData } = storeToRefs(matchStore)
-
-const route = useRoute()
-const matchId = route.params.matchId
-
-const isPlayerOne = userInfo.value.userId === matchData.value.playerOneId
 const currentRound = computed(() => myRoundList.value.length)
-const myCumulativeScore = computed(() =>
-  myRoundList.value.reduce((acc, round) => acc + round.score + round.bonus, 0),
-)
-const opponentCumulativeScore = computed(() =>
-  opponentRoundList.value.reduce((acc, round) => acc + round.score + round.bonus, 0),
-)
-const winnerId = computed(() => {
-  if (myCumulativeScore.value > opponentCumulativeScore.value) {
-    return userInfo.value.userId
-  } else if (myCumulativeScore.value < opponentCumulativeScore.value) {
-    return opponentInfo.value.opponentId
-  } else {
-    return null
-  }
-})
-
-// 確認對手是否已經放棄比賽，若放棄，此局不列入計分
-async function checkIsAbandonedMatch() {
-  const { data: abandonedMatch, error: selectMatchError } = await supabase
-    .from('matches')
-    .select('*')
-    .eq('match_id', matchId)
-    .or(
-      `player_one_id.eq.${userStore.userInfo.userId},player_two_id.eq.${userStore.userInfo.userId}`,
-    )
-    .eq('status', 'abandoned')
-    .maybeSingle()
-
-  if (selectMatchError) {
-    throw new Error('[selectMatchError] 搜尋match資料失敗：' + selectMatchError.message)
-  }
-
-  return Boolean(abandonedMatch)
-}
-
-async function updateMatch() {
-  try {
-    matchStore.updateMatchData({
-      status: (await checkIsAbandonedMatch()) ? 'abandoned' : 'completed',
-      isComplete: true,
-    })
-
-    if (isPlayerOne) {
-      const { error: updateMatchesTableError } = await supabase
-        .from('matches')
-        .update({
-          winner_id: winnerId.value,
-          is_player_one_complete: isPlayerOne,
-          status: (await checkIsAbandonedMatch()) ? 'abandoned' : 'completed',
-        })
-        .eq('match_id', matchStore.matchData.matchId)
-
-      if (updateMatchesTableError) {
-        throw new Error(
-          '[updateMatchesTableError] 更新資料庫失敗：' + updateMatchesTableError.message,
-        )
-      }
-    } else {
-      const { error: updateMatchesTableError } = await supabase
-        .from('matches')
-        .update({
-          winner_id: winnerId.value,
-          is_player_two_complete: !isPlayerOne,
-          status: (await checkIsAbandonedMatch()) ? 'abandoned' : 'completed',
-        })
-        .eq('match_id', matchStore.matchData.matchId)
-
-      if (updateMatchesTableError) {
-        throw new Error(
-          '[updateMatchesTableError] 更新資料庫失敗：' + updateMatchesTableError.message,
-        )
-      }
-    }
-
-    return true
-  } catch (error) {
-    console.error('[updateMatchesTableError] 發生錯誤：', error)
-    return false
-  }
-}
-
-async function updateUserWinRate() {
-  const { userId, winCount, lossCount, totalMatches } = userInfo.value
-  const isWin = winnerId.value === userId
-
-  try {
-    const isAbandoned = await checkIsAbandonedMatch()
-    if (isAbandoned) return
-
-    matchStore.setIsWin(isWin)
-
-    const { error: updateUserWinRateError } = await supabase
-      .from('users')
-      .update({
-        win_count: isWin ? winCount + 1 : winCount,
-        loss_count: isWin ? lossCount : lossCount + 1,
-        total_matches: totalMatches + 1,
-      })
-      .eq('user_id', userId)
-
-    if (updateUserWinRateError) {
-      throw new Error(
-        '[updateMatchesTableError] 更新User資料庫失敗：' + updateUserWinRateError.message,
-      )
-    }
-  } catch (error) {
-    console.error('[updateUserWinRateError] 發生錯誤：', error)
-  }
-}
-
-onMounted(async () => {
-  if (currentRound.value < 5) {
-    setTimeout(() => {
-      safePush(`/round-start/${matchId}`)
-    }, 3000)
-  } else {
-    const success = await Promise.all([updateMatch(), updateUserWinRate()])
-
-    if (!success) {
-      alert('比賽結果儲存失敗，請稍後再試')
-    }
-    safePush(`/game-result/${matchId}`)
-  }
-})
 
 const myScoreWithoutThisRound = computed(() =>
-  roundStore.myRoundList
-    .slice(0, currentRound.value - 1)
-    .reduce((acc, round) => acc + round.score + round.bonus, 0),
+  calculateCumulativeScore(roundStore.myRoundList.slice(0, currentRound.value - 1)),
 )
 const opponentScoreWithoutThisRound = computed(() =>
-  roundStore.opponentRoundList
-    .slice(0, currentRound.value - 1)
-    .reduce((acc, round) => acc + round.score + round.bonus, 0),
+  calculateCumulativeScore(roundStore.opponentRoundList.slice(0, currentRound.value - 1)),
 )
 
 const myScoreThisRound = computed(() => roundStore.myRoundList[currentRound.value - 1]?.score ?? 0)
@@ -180,10 +44,10 @@ const opponentBonusThisRound = computed(
 )
 
 function calcWidth(score: number) {
-  const TOTAL_MAX_SCORE = 520
-
-  return (score / TOTAL_MAX_SCORE) * 100
+  return (score / MAX_CUMULATIVE_SCORE) * 100
 }
+
+// 停留時間、下一回合與最終結算皆由 Supabase Match phase 控制。
 </script>
 
 <template>

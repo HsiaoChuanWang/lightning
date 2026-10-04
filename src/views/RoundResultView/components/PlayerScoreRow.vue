@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import PlayerInfo from '@/components/common/PlayerInfo.vue'
 
+const SCORE_BLOCK_MIN_WIDTH_PX = 156
+const SCORE_BLOCK_COUNT = 3
+const SCORE_ROW_GAP_PX = 8
+const SCORE_ROW_RESERVED_WIDTH_PX =
+  SCORE_BLOCK_MIN_WIDTH_PX * SCORE_BLOCK_COUNT + SCORE_ROW_GAP_PX * (SCORE_BLOCK_COUNT - 1)
+
 const {
   iconColor,
   playerName,
@@ -20,6 +26,15 @@ const {
   accuracyWidth: number
   timeBonusWidth: number
 }>()
+
+/** 以 156px 為基礎寬度，再依分數百分比分配 score row 的剩餘寬度。 */
+function calcResponsiveWidth(widthPercent: number) {
+  const normalizedPercent = Math.min(100, Math.max(0, widthPercent))
+  const ratio = normalizedPercent / 100
+  const responsiveOffsetPx = SCORE_BLOCK_MIN_WIDTH_PX - ratio * SCORE_ROW_RESERVED_WIDTH_PX
+
+  return `calc(${normalizedPercent}% + ${responsiveOffsetPx}px)`
+}
 </script>
 
 <template>
@@ -34,7 +49,7 @@ const {
     />
 
     <div class="score-row">
-      <div class="score-block" :style="{ width: originalWidth + '%' }">
+      <div class="score-block" :style="{ width: calcResponsiveWidth(originalWidth) }">
         <div class="score-bar original-bar">
           <p class="score-number bungee-regular-60">{{ originalScore }}</p>
         </div>
@@ -42,7 +57,7 @@ const {
         <p class="quantico-bold-16 score-label">Original</p>
       </div>
 
-      <div class="score-block" :style="{ width: accuracyWidth + '%' }">
+      <div class="score-block" :style="{ width: calcResponsiveWidth(accuracyWidth) }">
         <div class="score-bar accuracy-bar">
           <p class="score-number bungee-regular-60">+{{ accuracyScore }}</p>
         </div>
@@ -50,7 +65,7 @@ const {
         <p class="quantico-bold-16 score-label">Accuracy</p>
       </div>
 
-      <div class="score-block" :style="{ width: timeBonusWidth + '%' }">
+      <div class="score-block" :style="{ width: calcResponsiveWidth(timeBonusWidth) }">
         <div class="score-bar time-bonuos-bar">
           <p class="score-number bungee-regular-60">+{{ timeBonusScore }}</p>
         </div>
@@ -77,8 +92,7 @@ const {
 }
 
 .score-block {
-  min-width: 150px;
-  width: fit-content;
+  min-width: 168px;
 }
 
 .score-bar {

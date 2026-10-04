@@ -1,9 +1,9 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-export type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled'
+export type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled' | 'unavailable'
 
-interface RevengeInfo {
+export interface RevengeInfo {
   revengeId: string
   fromUserId: string
   toUserId: string
@@ -27,7 +27,7 @@ export const useRevengeStore = defineStore('revenge', () => {
   }
 
   function updateRevengeStatus(status: RevengeStatus) {
-    revengeInfo.value.createdAt = status
+    revengeInfo.value.status = status
   }
 
   function clearRevengeInfo() {

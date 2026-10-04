@@ -16,6 +16,12 @@ const emit = defineEmits<{
 
 const isFlipped = ref(false)
 
+function handleFlip() {
+  if (!props.showAnswer) return
+  isFlipped.value = !isFlipped.value
+  emit('flip')
+}
+
 watch(
   () => props.showAnswer,
   (value) => {
@@ -23,12 +29,6 @@ watch(
   },
   { immediate: true },
 )
-
-function handleFlip() {
-  if (!props.showAnswer) return
-  isFlipped.value = !isFlipped.value
-  emit('flip')
-}
 </script>
 
 <template>

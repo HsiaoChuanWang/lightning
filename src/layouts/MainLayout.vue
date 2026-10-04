@@ -1,3 +1,9 @@
+<script setup lang="ts">
+import { useMatchFlowSync } from '@/composables/useMatchFlowSync'
+
+useMatchFlowSync()
+</script>
+
 <template>
   <div class="main-layout">
     <router-view />

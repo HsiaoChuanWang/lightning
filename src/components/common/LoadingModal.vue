@@ -1,41 +1,28 @@
 <script setup lang="ts">
-import { supabase } from '@/lib/supabaseClient'
+import { MATCH_LOADING_TIMEOUT_SECONDS } from '@/config/game'
+import { TIMER_TICK_MS } from '@/config/timing'
+import { useDisposableTimers } from '@/composables/useDisposableTimers'
+import { removeFromMatchingPool } from '@/services/opponentMatchingService'
 import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
 import { useUserStore } from '@/stores/user'
 import { formatTime } from '@/utils/helpers'
+import { reportError } from '@/utils/errors'
 import { onUnmounted, ref, watch } from 'vue'
 import ModalComponent from '../ui-components/ModalComponent.vue'
 
 const globalStore = useGlobalStore()
 const userStore = useUserStore()
 const matchStore = useMatchStore()
+const { cancelInterval, isActive, scheduleInterval } = useDisposableTimers()
 
-const totalTime = 30
-const remaining = ref(totalTime)
-let timerInterval: number | undefined
-
-watch(
-  () => globalStore.isLoadingModalOpen,
-  (isOpen) => {
-    if (isOpen) {
-      startTimer()
-    } else {
-      stopTimer()
-      // 不在這裡重設，等待 unmount 後重設為 totalTime
-    }
-  },
-)
-
-onUnmounted(() => {
-  stopTimer()
-  remaining.value = totalTime
-})
+const remaining = ref(MATCH_LOADING_TIMEOUT_SECONDS)
+let timerInterval: ReturnType<typeof setInterval> | null = null
 
 function startTimer() {
   stopTimer()
-  remaining.value = totalTime
-  timerInterval = window.setInterval(async () => {
+  remaining.value = MATCH_LOADING_TIMEOUT_SECONDS
+  timerInterval = scheduleInterval(async () => {
     remaining.value -= 1
     if (remaining.value <= 0) {
       stopTimer()
@@ -48,42 +35,53 @@ function startTimer() {
         try {
           await cancelMatch()
         } finally {
-          globalStore.setIsLoadingModalOpen(false)
+          if (isActive()) globalStore.setIsLoadingModalOpen(false)
         }
       }
     }
-  }, 1000)
+  }, TIMER_TICK_MS)
 }
 
 function stopTimer() {
-  if (timerInterval) {
-    clearInterval(timerInterval)
-    timerInterval = undefined
+  if (timerInterval !== null) {
+    cancelInterval(timerInterval)
+    timerInterval = null
   }
 }
 
 async function cancelMatch() {
   try {
-    const { error: deleteFromMatchingPoolError } = await supabase
-      .from('matching_pool')
-      .delete()
-      .eq('user_id', userStore.myCurrentId)
-
-    if (deleteFromMatchingPoolError) {
-      throw new Error(
-        '[deleteFromMatchingPoolError] 從 matching_pool 刪除失敗：' +
-          deleteFromMatchingPoolError.message,
-      )
-    }
+    await removeFromMatchingPool([userStore.myCurrentId])
+    if (!isActive()) return
 
     matchStore.setIsMatchCanceled(true)
 
     stopTimer()
     globalStore.setIsLoadingModalOpen(false)
   } catch (error) {
-    console.error('[cancelMatch error] 發生錯誤：', error)
+    reportError('cancelMatch', error)
+    globalStore.showError('Unable to cancel matchmaking. Please try again.')
+  } finally {
+    if (isActive()) globalStore.setIsLoadingModalOpen(false)
   }
 }
+
+watch(
+  () => globalStore.isLoadingModalOpen,
+  (isOpen) => {
+    if (isOpen) {
+      startTimer()
+    } else {
+      stopTimer()
+      // 不在這裡重設，等待 unmount 後重設為完整配對時間
+    }
+  },
+)
+
+onUnmounted(() => {
+  stopTimer()
+  remaining.value = MATCH_LOADING_TIMEOUT_SECONDS
+})
 </script>
 
 <template>

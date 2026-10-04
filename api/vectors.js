@@ -35,15 +35,19 @@ app.post('/api/vectors', async (req, res) => {
     const vector1 = embeddings?.[0]?.values
     const vector2 = embeddings?.[1]?.values
 
+    // 檢查 Gemini 是否回傳兩組向量。
     if (!Array.isArray(vector1) || !Array.isArray(vector2)) {
-      return res.status(502).json({ error: 'Embedding service returned invalid data' })
+      return res.status(502).json({
+        code: 'INVALID_GEMINI_PAYLOAD',
+        error: 'Embedding service returned invalid data',
+      })
     }
 
     // 只回向量，不做任何相似度計算
     return res.status(200).json({ vector1, vector2 })
   } catch (err) {
     console.error('Embedding API Error:', err)
-    return res.status(500).json({ error: 'Internal Server Error' })
+    return res.status(500).json({ code: 'GEMINI_FAILURE', error: 'Internal Server Error' })
   }
 })
 

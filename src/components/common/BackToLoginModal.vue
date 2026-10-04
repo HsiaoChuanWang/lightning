@@ -2,13 +2,13 @@
 import { useGlobalStore } from '@/stores/global'
 import ModalComponent from '../ui-components/ModalComponent.vue'
 
-const globalStore = useGlobalStore()
-
 // 告訴父層：使用者按了 Yes / No
 const emit = defineEmits<{
   (e: 'keepPlaying'): void
   (e: 'quit'): void
 }>()
+
+const globalStore = useGlobalStore()
 
 function onKeepPlaying() {
   emit('keepPlaying')

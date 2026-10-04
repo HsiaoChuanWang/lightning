@@ -5,7 +5,7 @@ import PlayerInfo from '@/components/common/PlayerInfo.vue'
 import ButtonComponent from '@/components/ui-components/ButtonComponent.vue'
 import InputCard from './InputCard.vue'
 
-const props = defineProps<{
+defineProps<{
   myName: string
   myAnswer: string
   opponentName: string
@@ -159,7 +159,7 @@ const handleSubmit = () => emits('submitAnswer')
   overflow: hidden;
   white-space: nowrap;
   width: 0;
-  border-right: 2px solid #fff;
+  border-right: 2px solid var(--color-neutral-0);
   animation:
     typing 3s steps(9, end) infinite,
     cursor 0.8s step-end infinite;

@@ -12,46 +12,63 @@ export interface Round {
   createdAt: string
 }
 
+type RoundPatch = Partial<Omit<Round, 'round'>>
+
 export const useRoundStore = defineStore('round', () => {
   const myRoundList = ref<Round[]>([])
   const opponentRoundList = ref<Round[]>([])
   const phantomRoundList = ref<Round[]>([])
   const aiResponseList = ref<string[]>([])
 
-  function updateRoundList(data: Round) {
-    myRoundList.value.push(data)
+  /** 依 round number 新增或取代完整回合資料。 */
+  function setRoundData(roundList: Round[], data: Round) {
+    const index = roundList.findIndex((roundData) => roundData.round === data.round)
+
+    if (index === -1) {
+      roundList.push(data)
+      roundList.sort((a, b) => a.round - b.round)
+      return
+    }
+
+    roundList[index] = data
   }
 
-  function updateMyCurrentRoundData(payload: Partial<Round>) {
-    const index = myRoundList.value.findIndex((data) => data.round === myRoundList.value.length)
-    if (index !== -1) {
-      myRoundList.value[index] = {
-        ...myRoundList.value[index],
-        ...payload,
-      }
+  function setMyRoundData(data: Round) {
+    setRoundData(myRoundList.value, data)
+  }
+
+  /** 依明確的 round number 更新自己的部分回合資料。 */
+  function updateMyRoundData(round: number, payload: RoundPatch) {
+    const index = myRoundList.value.findIndex((data) => data.round === round)
+    if (index === -1) throw new Error(`[updateMyRoundData] 找不到第 ${round} 回合`)
+
+    myRoundList.value[index] = {
+      ...myRoundList.value[index],
+      ...payload,
     }
   }
 
-  function restMyRoundList() {
+  function resetMyRoundList() {
     myRoundList.value = []
   }
 
-  function updateOpponentRoundList(data: Round) {
-    opponentRoundList.value.push(data)
+  function setOpponentRoundData(data: Round) {
+    setRoundData(opponentRoundList.value, data)
   }
 
-  function updateOpponentCurrentRoundData(payload: Partial<Round>) {
-    const index = opponentRoundList.value.findIndex((data) => data.round === payload.round)
+  /** 依明確的 round number 更新對手的部分回合資料。 */
+  function updateOpponentRoundData(round: number, payload: RoundPatch) {
+    const index = opponentRoundList.value.findIndex((data) => data.round === round)
 
-    if (index !== -1) {
-      opponentRoundList.value[index] = {
-        ...opponentRoundList.value[index],
-        ...payload,
-      }
+    if (index === -1) throw new Error(`[updateOpponentRoundData] 找不到第 ${round} 回合`)
+
+    opponentRoundList.value[index] = {
+      ...opponentRoundList.value[index],
+      ...payload,
     }
   }
 
-  function restOpponentRoundList() {
+  function resetOpponentRoundList() {
     opponentRoundList.value = []
   }
 
@@ -68,12 +85,12 @@ export const useRoundStore = defineStore('round', () => {
     opponentRoundList,
     phantomRoundList,
     aiResponseList,
-    updateRoundList,
-    updateMyCurrentRoundData,
-    restRoundList: restMyRoundList,
-    updateOpponentRoundList,
-    updateOpponentCurrentRoundData,
-    restOpponentRoundList,
+    setMyRoundData,
+    updateMyRoundData,
+    resetRoundList: resetMyRoundList,
+    setOpponentRoundData,
+    updateOpponentRoundData,
+    resetOpponentRoundList,
     setPhantomRoundList,
     setAiResponseList,
   }
