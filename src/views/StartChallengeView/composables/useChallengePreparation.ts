@@ -11,6 +11,7 @@ import { useRevengeStore } from '@/stores/revenge'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { preloadImages } from '@/utils/preloadImages'
+import { reportError } from '@/utils/errors'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { onBeforeMount, ref } from 'vue'
@@ -37,12 +38,14 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
   })
 
   async function markMatchInProgress() {
+    const previousStatus = matchStore.matchData.status
     matchStore.updateMatchStatus('in_progress')
 
     try {
       await updateMatchStatus(matchId, 'in_progress')
-    } catch {
-      // console.error('[markMatchInProgress] failed:', error)
+    } catch (error) {
+      matchStore.updateMatchStatus(previousStatus)
+      throw reportError('markMatchInProgress', error)
     }
   }
 
@@ -66,8 +69,8 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
           totalMatches: 0,
         })
       }
-    } catch {
-      // console.error('[loadUsersData] failed:', error)
+    } catch (error) {
+      throw reportError('loadUsersData', error)
     }
   }
 
@@ -75,36 +78,31 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
     try {
       const answers = await fetchImageDescriptions(prompt, imageUrlList.value)
       if (answers) roundStore.setAiResponseList(answers)
-    } catch {
-      // console.error('[loadAiResponses] failed:', error)
+    } catch (error) {
+      reportError('loadAiResponses', error)
       roundStore.setAiResponseList(quizStore.quizList.map((quiz) => quiz.preparedAiAnswer || ''))
     }
   }
 
   async function loadQuizData() {
-    try {
-      const quizzes = await findQuizzesBySetId(matchStore.matchData.quizSetId)
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-      const quizImageUrls = quizzes.map((quiz) => supabaseUrl + quiz.imageUrl)
+    const quizzes = await findQuizzesBySetId(matchStore.matchData.quizSetId)
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    const quizImageUrls = quizzes.map((quiz) => supabaseUrl + quiz.imageUrl)
 
-      if (matchStore.matchData.opponentType === 'ai') {
-        imageUrlList.value = quizImageUrls
-      }
+    if (matchStore.matchData.opponentType === 'ai') {
+      imageUrlList.value = quizImageUrls
+    }
 
-      quizStore.setQuizList(quizzes)
+    quizStore.setQuizList(quizzes)
 
       // 題庫資料只包含圖片網址；在進入 RoundStart 前先完成實際圖片下載。
       const preloadPromise = preloadImages(quizImageUrls)
 
-      if (matchStore.matchData.opponentType === 'ai') {
+    if (matchStore.matchData.opponentType === 'ai') {
         // 瀏覽器預載圖片與後端產生 AI 描述可同時進行，避免增加等待時間。
         await Promise.all([preloadPromise, loadAiResponses()])
-      } else {
-        await preloadPromise
-      }
-    } catch (error) {
-      // console.error('[loadQuizData] failed:', error)
-      throw error
+    } else {
+      await preloadPromise
     }
   }
 
@@ -116,8 +114,9 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       roundStore.resetRoundList()
       roundStore.resetOpponentRoundList()
       revengeStore.clearRevengeInfo()
-    } catch {
-      // console.error('[useChallengePreparation] failed:', error)
+    } catch (error) {
+      reportError('useChallengePreparation', error)
+      globalStore.showError('Unable to prepare this match. Please return home and try again.')
     }
   })
 

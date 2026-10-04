@@ -12,6 +12,7 @@ export const useGlobalStore = defineStore('global', () => {
   const isLoadingModalOpen = ref<boolean>(false)
   const isPlayAgainModalOpen = ref<boolean>(false)
   const isBackToLoginModalOpen = ref<boolean>(false)
+  const errorMessage = ref('')
 
   function setIsLoadingModalOpen(status: boolean) {
     isLoadingModalOpen.value = status
@@ -25,12 +26,23 @@ export const useGlobalStore = defineStore('global', () => {
     isBackToLoginModalOpen.value = status
   }
 
+  function showError(message: string) {
+    errorMessage.value = message
+  }
+
+  function clearError() {
+    errorMessage.value = ''
+  }
+
   return {
     isLoadingModalOpen,
     isPlayAgainModalOpen,
     isBackToLoginModalOpen,
+    errorMessage,
     setIsLoadingModalOpen,
     setIsPlayAgainModalOpen,
     setIsBackToLoginModalOpen,
+    showError,
+    clearError,
   }
 })

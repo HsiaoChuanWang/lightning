@@ -18,14 +18,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add a five-second rematch response timeout with a clear message when the opponent is unavailable
+- Add a shared error modal for clear user-facing failure messages
 
 ### Fixed
 
 - Clear all game session state before returning home to prevent stale match data and redirects
+- Restore loading, modal, and processing states when matchmaking, match preparation, scoring, or rematch actions fail
 
 ### Changed
 
 - Centralize post-game session cleanup across home, canceled, rejected, and timed-out rematch flows
+- Normalize and consistently log errors while preserving safe fallbacks such as local scoring
 
 ## [0.16.5] - 2026-10-03
 

@@ -14,6 +14,7 @@ import { useRevengeStore, type RevengeStatus } from '@/stores/revenge'
 import { useUserStore } from '@/stores/user'
 import { getRandomQuizSetId } from '@/utils/helpers'
 import { clearGameSession } from '@/utils/gameSession'
+import { reportError } from '@/utils/errors'
 import { storeToRefs } from 'pinia'
 
 export function useRematch(matchId: string | string[]) {
@@ -40,8 +41,10 @@ export function useRematch(matchId: string | string[]) {
           clearGameSession()
           safeReplace('/')
         }, REMATCH_RESULT_DELAY_MS)
-      } catch {
-        // 查詢失敗時保留 Pending，避免把暫時性的網路錯誤誤判為對方正在遊戲中。
+      } catch (error) {
+        reportError('scheduleRematchResponseTimeout', error)
+        globalStore.setIsPlayAgainModalOpen(false)
+        globalStore.showError('Unable to check the rematch request. Please try again.')
       }
     }, REMATCH_RESPONSE_TIMEOUT_MS)
   }
@@ -121,8 +124,11 @@ export function useRematch(matchId: string | string[]) {
       )
       await persistRevengeStatus(matchId, 'matched')
       revengeStore.updateRevengeStatus('matched')
-    } catch {
-      // console.error('[sendRematchRequest] failed:', error)
+    } catch (error) {
+      reportError('sendRematchRequest', error)
+      globalStore.setIsPlayAgainModalOpen(false)
+      revengeStore.clearRevengeInfo()
+      globalStore.showError('Unable to send the rematch request. Please try again.')
     }
   }
 
@@ -165,8 +171,9 @@ export function useRematch(matchId: string | string[]) {
         clearGameSession()
         safeReplace('/')
       }, REMATCH_RESULT_DELAY_MS)
-    } catch {
-      // console.error('[replyPlayAgainRequest] failed:', error)
+    } catch (error) {
+      reportError('replyPlayAgainRequest', error)
+      globalStore.showError('Unable to update the rematch request. Please try again.')
     }
   }
 

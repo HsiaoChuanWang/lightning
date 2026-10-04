@@ -5,6 +5,8 @@ import { useMatchStore } from '@/stores/match'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { safeReplace } from '@/composables/usePageGuard'
+import { useGlobalStore } from '@/stores/global'
+import { reportError } from '@/utils/errors'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { onMounted, ref, watch } from 'vue'
@@ -22,6 +24,7 @@ export function useRoundPreparation({
   nextRound,
 }: UseRoundPreparationOptions) {
   const matchStore = useMatchStore()
+  const globalStore = useGlobalStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
   const { delay, isActive } = useDisposableTimers()
@@ -133,9 +136,10 @@ export function useRoundPreparation({
 
     try {
       await waitForRounds()
-    } catch {
+    } catch (error) {
       if (!isActive()) return
-      // console.error('[prepareRound] failed:', error)
+      reportError('prepareRound', error)
+      globalStore.showError('Unable to prepare the next round. Please return home and try again.')
       safeReplace(`/`)
     }
   }

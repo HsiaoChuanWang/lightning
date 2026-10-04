@@ -21,6 +21,7 @@ import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import type { MatchRecord } from '@/types/database'
 import { getRandomQuizSetId } from '@/utils/helpers'
+import { reportError } from '@/utils/errors'
 import type { RealtimeChannel } from '@supabase/supabase-js'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
@@ -224,11 +225,7 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       await abandonExistingMatch(userInfo.userId)
       subscribeToMatch(userInfo.userId)
 
-      try {
-        await enterMatchingPool(userInfo.userId)
-      } catch {
-        return
-      }
+      await enterMatchingPool(userInfo.userId)
 
       const humanOpponent = await tryFindHumanOpponent(userInfo.userId)
       if (humanOpponent || !isSearchActive()) return
@@ -250,9 +247,11 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       if (aiOpponent && isSearchActive()) {
         await createMatch(userInfo.userId, aiOpponent, 'ai', getRandomQuizSetId())
       }
-    } catch {
+    } catch (error) {
+      reportError('startMatching', error)
       matchingState.value = 'idle'
       globalStore.setIsLoadingModalOpen(false)
+      globalStore.showError('Unable to start matchmaking. Please try again.')
     } finally {
       isProcessing.value = false
       if (matchingState.value === 'searching') matchingState.value = 'idle'

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import BackToLoginModal from '@/components/common/BackToLoginModal.vue'
+import ErrorModal from '@/components/common/ErrorModal.vue'
 import { abandonInProgressMatch } from '@/services/matchService'
 import { useGlobalStore } from '@/stores/global'
 import { onMounted } from 'vue'
@@ -31,4 +32,5 @@ onMounted(() => {
 <template>
   <RouterView />
   <BackToLoginModal @keepPlaying="keepPlaying" @quit="abandonAndExit" />
+  <ErrorModal />
 </template>

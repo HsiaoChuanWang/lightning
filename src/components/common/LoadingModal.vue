@@ -7,6 +7,7 @@ import { useGlobalStore } from '@/stores/global'
 import { useMatchStore } from '@/stores/match'
 import { useUserStore } from '@/stores/user'
 import { formatTime } from '@/utils/helpers'
+import { reportError } from '@/utils/errors'
 import { onUnmounted, ref, watch } from 'vue'
 import ModalComponent from '../ui-components/ModalComponent.vue'
 
@@ -57,8 +58,11 @@ async function cancelMatch() {
 
     stopTimer()
     globalStore.setIsLoadingModalOpen(false)
-  } catch {
-    // console.error('[cancelMatch] failed:', error)
+  } catch (error) {
+    reportError('cancelMatch', error)
+    globalStore.showError('Unable to cancel matchmaking. Please try again.')
+  } finally {
+    if (isActive()) globalStore.setIsLoadingModalOpen(false)
   }
 }
 

@@ -1,4 +1,3 @@
-import { safeReplace } from '@/composables/usePageGuard'
 import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { AI_MAX_RESPONSE_TIME_MS, ANSWER_TIME_SECONDS } from '@/config/game'
 import { TIMER_TICK_MS, TIME_UP_BANNER_DURATION_MS } from '@/config/timing'
@@ -7,10 +6,12 @@ import { startAnsweringAfterRender } from '@/services/matchService'
 import { fetchVectors } from '@/services/scoringService'
 import { toMatch } from '@/mappers/matchMapper'
 import { useMatchStore } from '@/stores/match'
+import { useGlobalStore } from '@/stores/global'
 import { useQuizStore } from '@/stores/quiz'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { calculateCumulativeScore, calculateFallbackScore, cosineSimilarity } from '@/utils/helpers'
+import { reportError } from '@/utils/errors'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect, type Ref } from 'vue'
@@ -23,6 +24,7 @@ interface UseRoundGameplayOptions {
 /** 管理單一作答回合的計時、送出、計分、對手模擬、答案揭曉與導頁流程。 */
 export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOptions) {
   const matchStore = useMatchStore()
+  const globalStore = useGlobalStore()
   const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
@@ -197,9 +199,7 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
         submittedAt,
       })
     } catch (error) {
-      if (isActive()) safeReplace(`/`)
-      // console.error('[updateMyRound] failed:', error)
-      throw error
+      throw reportError('updateMyRound', error)
     }
   }
 
@@ -241,8 +241,8 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       if (data?.vector1 && data.vector2) {
         return Math.round(cosineSimilarity(data.vector1, data.vector2))
       }
-    } catch {
-      // console.error('[getVector] failed:', error)
+    } catch (error) {
+      reportError('getVector', error)
     } finally {
       isWaitingForScore.value = false
     }
@@ -266,7 +266,13 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       timeTakenMs,
       submittedAt: new Date().toISOString(),
     })
-    await updateMyRound(newScore ?? 0)
+    try {
+      await updateMyRound(newScore ?? 0)
+    } catch {
+      if (!isActive()) return
+      isButtonDisabled.value = false
+      globalStore.showError('Unable to save your answer. Please try again.')
+    }
   }
 
   /** 依對手類型安排 Phantom 歷史答案或 AI 產生答案的提交時間。 */
