@@ -6,12 +6,12 @@ import { startAnsweringAfterRender } from '@/services/matchService'
 import { fetchVectors } from '@/services/scoringService'
 import { toMatch } from '@/mappers/matchMapper'
 import { useMatchStore } from '@/stores/match'
-import { useGlobalStore } from '@/stores/global'
 import { useQuizStore } from '@/stores/quiz'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { calculateCumulativeScore, calculateFallbackScore, cosineSimilarity } from '@/utils/helpers'
 import { reportError } from '@/utils/errors'
+import { endGameWithError } from '@/utils/gameFailure'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { computed, onBeforeUnmount, onMounted, ref, watchEffect, type Ref } from 'vue'
@@ -24,7 +24,6 @@ interface UseRoundGameplayOptions {
 /** 管理單一作答回合的計時、送出、計分、對手模擬、答案揭曉與導頁流程。 */
 export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOptions) {
   const matchStore = useMatchStore()
-  const globalStore = useGlobalStore()
   const quizStore = useQuizStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
@@ -268,10 +267,13 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
     })
     try {
       await updateMyRound(newScore ?? 0)
-    } catch {
+    } catch (error) {
       if (!isActive()) return
-      isButtonDisabled.value = false
-      globalStore.showError('Unable to save your answer. Please try again.')
+      await endGameWithError({
+        context: 'handleSubmit',
+        error,
+        message: 'Unable to save your answer. Returning to the login screen.',
+      })
     }
   }
 
@@ -358,7 +360,48 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
     }
   }
 
-  watchEffect(async () => {
+  async function revealAnswer() {
+    try {
+      stopTimer()
+
+      // 真人答案以資料庫提交結果為準；AI／Phantom 沒有目前 Match 的對手 Round，保留模擬答案。
+      if (matchStore.matchData.opponentType === 'human') await getOpponentRoundData()
+      if (!isActive()) return
+
+      // 正常情況下 Banner 已在倒數歸零時出現；若使用者從背景分頁回來或直接進入
+      // answer_reveal，仍以相同順序補上 Submitted 與 Time's up。
+      await showTimeUpAfterOpponentSubmitted()
+      if (!isActive()) return
+
+      const elapsedTimeUpMs = timeUpShownAtMs ? Date.now() - timeUpShownAtMs : 0
+      const remainingTimeUpMs = Math.max(TIME_UP_BANNER_DURATION_MS - elapsedTimeUpMs, 0)
+      if (remainingTimeUpMs > 0 && (!(await delay(remainingTimeUpMs)) || !isActive())) return
+      showTimeUp.value = false
+      showAnswer.value = true
+
+      await Promise.all([
+        animateScoreTransition(
+          myScoreWithoutThisRound,
+          myScoreWithoutThisRound.value,
+          myCumulativeScore.value,
+        ),
+        animateScoreTransition(
+          opponentScoreWithoutThisRound,
+          opponentScoreWithoutThisRound.value,
+          opponentCumulativeScore.value,
+        ),
+      ])
+    } catch (error) {
+      if (!isActive()) return
+      await endGameWithError({
+        context: 'revealAnswer',
+        error,
+        message: 'Unable to reveal the round result. Returning to the login screen.',
+      })
+    }
+  }
+
+  watchEffect(() => {
     if (matchStore.matchData.phase === 'answering') {
       if (isReportingRenderReady) return
       startAnswerTimer()
@@ -369,36 +412,7 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
       return
 
     isRevealingAnswer = true
-
-    stopTimer()
-
-    // 真人答案以資料庫提交結果為準；AI／Phantom 沒有目前 Match 的對手 Round，保留模擬答案。
-    if (matchStore.matchData.opponentType === 'human') await getOpponentRoundData()
-    if (!isActive()) return
-
-    // 正常情況下 Banner 已在倒數歸零時出現；若使用者從背景分頁回來或直接進入
-    // answer_reveal，仍以相同順序補上 Submitted 與 Time's up。
-    await showTimeUpAfterOpponentSubmitted()
-    if (!isActive()) return
-
-    const elapsedTimeUpMs = timeUpShownAtMs ? Date.now() - timeUpShownAtMs : 0
-    const remainingTimeUpMs = Math.max(TIME_UP_BANNER_DURATION_MS - elapsedTimeUpMs, 0)
-    if (remainingTimeUpMs > 0 && (!(await delay(remainingTimeUpMs)) || !isActive())) return
-    showTimeUp.value = false
-    showAnswer.value = true
-
-    await Promise.all([
-      animateScoreTransition(
-        myScoreWithoutThisRound,
-        myScoreWithoutThisRound.value,
-        myCumulativeScore.value,
-      ),
-      animateScoreTransition(
-        opponentScoreWithoutThisRound,
-        opponentScoreWithoutThisRound.value,
-        opponentCumulativeScore.value,
-      ),
-    ])
+    void revealAnswer()
   })
 
   onMounted(initializeRound)

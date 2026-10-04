@@ -12,6 +12,8 @@ import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import type { MatchRecord } from '@/types/database'
 import type { RealtimeChannel } from '@supabase/supabase-js'
+import { endGameWithError } from '@/utils/gameFailure'
+import { reportError } from '@/utils/errors'
 import { onBeforeUnmount, watch } from 'vue'
 import { useRoute } from 'vue-router'
 
@@ -29,6 +31,8 @@ const PHASE_ROUTE: Record<MatchPhase, string> = {
 
 const EXPIRED_PHASE_RETRY_MS = 2_000
 const MAX_EXPIRED_PHASE_RETRIES = 3
+const MAX_SYNCHRONIZATION_FAILURES = 3
+const OPPONENT_DISCONNECT_GRACE_MS = 3_000
 
 /**
  * 將 Supabase Match phase 同步到 Pinia 與 Router。
@@ -45,6 +49,8 @@ export function useMatchFlowSync() {
   let isSynchronizing = false
   let lastPhaseKey = ''
   let expiredPhaseRetryCount = 0
+  let synchronizationFailureCount = 0
+  let opponentLeaveTimer: ReturnType<typeof setTimeout> | null = null
 
   function cancelPhaseCheck() {
     if (phaseCheckTimer === null) return
@@ -55,6 +61,8 @@ export function useMatchFlowSync() {
   /** 停止追蹤上一場 Match，回到 Login 後不再接收它的 Realtime 或 deadline 檢查。 */
   function unsubscribeCurrentMatch() {
     cancelPhaseCheck()
+    if (opponentLeaveTimer !== null) clearTimeout(opponentLeaveTimer)
+    opponentLeaveTimer = null
     lastPhaseKey = ''
     expiredPhaseRetryCount = 0
 
@@ -91,7 +99,7 @@ export function useMatchFlowSync() {
 
   async function hydrateMatch(record: MatchRecord) {
     const myUserId = userStore.myCurrentId || userStore.userInfo.userId
-    if (!myUserId) return
+    if (!myUserId) throw new Error('找不到目前使用者 ID')
 
     const opponentId =
       record.player_one_id === myUserId ? record.player_two_id : record.player_one_id
@@ -107,7 +115,10 @@ export function useMatchFlowSync() {
 
     const me = users.find((user) => user.user_id === myUserId)
     const opponent = users.find((user) => user.user_id === opponentId)
-    if (me) userStore.setUserInfo(toUserInfo(me))
+    if (!me) throw new Error('找不到目前使用者資料')
+    if (record.opponent_type !== 'ai' && !opponent) throw new Error('找不到對手資料')
+
+    userStore.setUserInfo(toUserInfo(me))
     if (opponent) userStore.setOpponentInfo(toOpponentInfo(opponent))
 
     if (record.opponent_type === 'human') {
@@ -151,6 +162,18 @@ export function useMatchFlowSync() {
     if (matchStore.matchData.matchId !== record.match_id) return
 
     matchStore.setMatchData(toMatch(record))
+    if (record.status === 'abandoned') {
+      await endGameWithError({
+        context: 'matchAbandoned',
+        message:
+          record.opponent_type === 'human'
+            ? 'The opponent disconnected. This match will not affect your record.'
+            : 'The match could not continue. Returning to the login screen.',
+        abandonCurrentMatch: false,
+      })
+      return
+    }
+
     if (record.phase === 'game_result') {
       const myUserId = userStore.myCurrentId || userStore.userInfo.userId
       matchStore.setIsWin(Boolean(myUserId && record.winner_id === myUserId))
@@ -174,9 +197,25 @@ export function useMatchFlowSync() {
     isSynchronizing = true
     try {
       const record = await findMatchById(matchId)
-      if (record && matchStore.matchData.matchId === matchId) await applyMatchRecord(record)
+      if (!record) throw new Error('找不到目前比賽資料')
+      if (matchStore.matchData.matchId === matchId) await applyMatchRecord(record)
+      synchronizationFailureCount = 0
     } catch (error) {
-      console.warn('[useMatchFlowSync] synchronize failed:', error)
+      synchronizationFailureCount += 1
+      reportError('useMatchFlowSync:synchronizeMatch', error)
+
+      if (synchronizationFailureCount >= MAX_SYNCHRONIZATION_FAILURES) {
+        await endGameWithError({
+          context: 'useMatchFlowSync:synchronizeMatch',
+          message: 'Unable to synchronize the match. Returning to the login screen.',
+        })
+      } else {
+        cancelPhaseCheck()
+        phaseCheckTimer = setTimeout(() => {
+          phaseCheckTimer = null
+          void synchronizeMatch()
+        }, EXPIRED_PHASE_RETRY_MS)
+      }
     } finally {
       isSynchronizing = false
     }
@@ -185,8 +224,9 @@ export function useMatchFlowSync() {
   function subscribe(matchId: string) {
     unsubscribeCurrentMatch()
 
+    const myUserId = userStore.myCurrentId || userStore.userInfo.userId
     channel = supabase
-      .channel(`match-flow-${matchId}`)
+      .channel(`match-flow-${matchId}`, { config: { presence: { key: myUserId } } })
       .on(
         'postgres_changes',
         {
@@ -197,10 +237,59 @@ export function useMatchFlowSync() {
         },
         (payload) => {
           if (matchStore.matchData.matchId !== matchId) return
-          void applyMatchRecord(payload.new as MatchRecord)
+          void applyMatchRecord(payload.new as MatchRecord).catch(async (error) => {
+            reportError('useMatchFlowSync:applyMatchRecord', error)
+            await endGameWithError({
+              context: 'useMatchFlowSync:applyMatchRecord',
+              message: 'Unable to update the match. Returning to the login screen.',
+            })
+          })
         },
       )
-      .subscribe()
+      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        const currentMatch = matchStore.matchData
+        if (
+          currentMatch.matchId !== matchId ||
+          currentMatch.opponentType !== 'human' ||
+          (currentMatch.status !== 'matched' && currentMatch.status !== 'in_progress')
+        )
+          return
+
+        const opponentId =
+          currentMatch.playerOneId === myUserId
+            ? currentMatch.playerTwoId
+            : currentMatch.playerOneId
+        const opponentLeft = leftPresences.some(
+          (presence) => (presence as { user_id?: string }).user_id === opponentId,
+        )
+        if (!opponentLeft) return
+
+        if (opponentLeaveTimer !== null) clearTimeout(opponentLeaveTimer)
+        opponentLeaveTimer = setTimeout(() => {
+          opponentLeaveTimer = null
+          if (!channel || matchStore.matchData.matchId !== matchId) return
+          if (
+            matchStore.matchData.status !== 'matched' &&
+            matchStore.matchData.status !== 'in_progress'
+          )
+            return
+
+          const opponentIsPresent = Object.values(channel.presenceState())
+            .flat()
+            .some((presence) => (presence as { user_id?: string }).user_id === opponentId)
+          if (opponentIsPresent) return
+
+          void endGameWithError({
+            context: 'opponentDisconnected',
+            message: 'The opponent disconnected. This match will not affect your record.',
+          })
+        }, OPPONENT_DISCONNECT_GRACE_MS)
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED' && channel && myUserId) {
+          void channel.track({ user_id: myUserId, online_at: new Date().toISOString() })
+        }
+      })
   }
 
   function handleVisibilityChange() {

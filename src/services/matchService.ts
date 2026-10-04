@@ -95,6 +95,7 @@ export async function abandonMatch(matchId: string, isPlayerOne: boolean): Promi
       status: 'abandoned',
     })
     .eq('match_id', matchId)
+    .in('status', ['matched', 'in_progress'])
 
   if (error) throw new Error('[abandonMatch] 更新對戰失敗：' + error.message)
 }
@@ -110,8 +111,12 @@ export async function abandonInProgressMatch(userId: string): Promise<boolean> {
 }
 
 export async function updateMatchStatus(matchId: string | string[], status: MatchStatus) {
-  const { error } = await supabase.from('matches').update({ status }).eq('match_id', matchId)
+  let query = supabase.from('matches').update({ status }).eq('match_id', matchId)
+  if (status === 'in_progress') query = query.in('status', ['matched', 'in_progress'])
+
+  const { data, error } = await query.select('match_id').maybeSingle()
   if (error) throw new Error('[updateMatchStatus] 更新對戰狀態失敗：' + error.message)
+  if (!data) throw new Error('[updateMatchStatus] 對戰已結束，無法繼續更新狀態')
 }
 
 export async function isMatchAbandoned(

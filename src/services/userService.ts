@@ -23,6 +23,18 @@ export async function createUser(userId: string, userName: string): Promise<void
   if (error) throw new Error('[createUser] 寫入使用者失敗：' + error.message)
 }
 
+/** 依使用者 ID 讀取單一使用者，供本機匿名身分登入時驗證資料是否仍存在。 */
+export async function findUserById(userId: string): Promise<UserRecord | null> {
+  const { data, error } = await supabase
+    .from('users')
+    .select('*')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  if (error) throw new Error('[findUserById] 載入使用者失敗：' + error.message)
+  return data
+}
+
 export async function findUsersByIds(userIds: string[]): Promise<UserRecord[]> {
   const { data, error } = await supabase.from('users').select('*').in('user_id', userIds)
 

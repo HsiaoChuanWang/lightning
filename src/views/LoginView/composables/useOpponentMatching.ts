@@ -2,7 +2,8 @@ import { MATCH_SEARCH_POLL_INTERVAL_MS, MATCH_SEARCH_TIMEOUT_MS } from '@/config
 import { useDisposableTimers } from '@/composables/useDisposableTimers'
 import { supabase } from '@/lib/supabaseClient'
 import { toMatch } from '@/mappers/matchMapper'
-import { abandonInProgressMatch, insertMatch } from '@/services/matchService'
+import { toUserInfo } from '@/mappers/userMapper'
+import { abandonInProgressMatch, abandonMatch, insertMatch } from '@/services/matchService'
 import {
   createAiOpponent,
   enterMatchingPool,
@@ -12,7 +13,7 @@ import {
   removeFromMatchingPool,
 } from '@/services/opponentMatchingService'
 import { findRounds } from '@/services/roundService'
-import { createUser } from '@/services/userService'
+import { createUser, findUserById } from '@/services/userService'
 import { useGlobalStore } from '@/stores/global'
 import { useMatchStore, type Match, type OpponentType } from '@/stores/match'
 import { useQuizStore } from '@/stores/quiz'
@@ -102,18 +103,52 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
   }
 
   async function initUser(userName: string) {
-    const cachedUserStr = localStorage.getItem(`user_info_${userName}`)
+    const normalizedUserName = userName.trim()
+    const storageKey = `user_info_${normalizedUserName}`
+    const cachedUserStr = localStorage.getItem(storageKey)
 
     if (cachedUserStr) {
-      const cachedUserInfo = JSON.parse(cachedUserStr)
-      if (cachedUserInfo.userName === userName) return cachedUserInfo
+      let cachedUserInfo: { userId?: unknown; userName?: unknown } | null = null
+
+      try {
+        cachedUserInfo = JSON.parse(cachedUserStr) as {
+          userId?: unknown
+          userName?: unknown
+        }
+      } catch (error) {
+        localStorage.removeItem(storageKey)
+        reportError('restoreLocalUser', error)
+      }
+
+      if (
+        cachedUserInfo &&
+        typeof cachedUserInfo.userId === 'string' &&
+        cachedUserInfo.userId &&
+        cachedUserInfo.userName === normalizedUserName
+      ) {
+        const existingUser = await findUserById(cachedUserInfo.userId)
+        if (existingUser) return existingUser
+
+        // 資料庫被重設時沿用本機 UUID 重建匿名使用者，避免快取指向不存在的資料列。
+        await createUser(cachedUserInfo.userId, normalizedUserName)
+        const recreatedUser = await findUserById(cachedUserInfo.userId)
+        if (!recreatedUser) throw new Error('使用者建立後仍無法讀取')
+        return recreatedUser
+      }
+
+      localStorage.removeItem(storageKey)
     }
 
     const userId = uuidv4()
-    await createUser(userId, userName)
-    const userInfo = { userId, avatarUrl: '', userName }
-    localStorage.setItem(`user_info_${userName}`, JSON.stringify(userInfo))
-    return userInfo
+    await createUser(userId, normalizedUserName)
+    const createdUser = await findUserById(userId)
+    if (!createdUser) throw new Error('使用者建立後仍無法讀取')
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify({ userId: createdUser.user_id, userName: createdUser.user_name }),
+    )
+    return createdUser
   }
 
   async function abandonExistingMatch(userId: string) {
@@ -189,7 +224,14 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
     if (!isSearchActive()) return false
 
     await insertMatch({ matchId, playerOneId: myId, playerTwoId, opponentType, quizSetId })
-    await removeFromMatchingPool([myId, playerTwoId])
+
+    try {
+      await removeFromMatchingPool([myId, playerTwoId])
+    } catch (error) {
+      await abandonMatch(matchId, true)
+      throw error
+    }
+
     return acceptMatch(match)
   }
 
@@ -219,8 +261,10 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
     removeMatchSubscriptions()
 
     try {
-      const userInfo = await initUser(userName)
+      const userRecord = await initUser(userName)
+      const userInfo = toUserInfo(userRecord)
       useUserStore().setMyCurrentId(userInfo.userId)
+      useUserStore().setUserInfo(userInfo)
       globalStore.setIsLoadingModalOpen(true)
       await abandonExistingMatch(userInfo.userId)
       subscribeToMatch(userInfo.userId)
@@ -251,6 +295,16 @@ export function useOpponentMatching({ triggerEntryAnimation }: UseOpponentMatchi
       reportError('startMatching', error)
       matchingState.value = 'idle'
       globalStore.setIsLoadingModalOpen(false)
+
+      const currentUserId = useUserStore().myCurrentId
+      if (currentUserId) {
+        try {
+          await removeFromMatchingPool([currentUserId])
+        } catch (cleanupError) {
+          reportError('startMatching:removeFromMatchingPool', cleanupError)
+        }
+      }
+
       globalStore.showError('Unable to start matchmaking. Please try again.')
     } finally {
       isProcessing.value = false

@@ -49,6 +49,7 @@ export const useUserStore = defineStore('user', () => {
   }
 
   function clearUser() {
+    myCurrentId.value = ''
     userInfo.value = {
       userId: '',
       userName: '',

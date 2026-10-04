@@ -12,6 +12,7 @@ import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
 import { preloadImages } from '@/utils/preloadImages'
 import { reportError } from '@/utils/errors'
+import { endGameWithError } from '@/utils/gameFailure'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { onBeforeMount, ref } from 'vue'
@@ -55,6 +56,9 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       const users = await findUsersByIds([playerOneId, playerTwoId])
       const me = users.find((info) => info.user_id === myCurrentId.value)
       const opponent = users.find((info) => info.user_id !== myCurrentId.value)
+
+      if (!me) throw new Error('找不到目前使用者資料')
+      if (opponentType !== 'ai' && !opponent) throw new Error('找不到對手資料')
 
       if (me) userStore.setUserInfo(toUserInfo(me))
       if (opponent && opponentType !== 'ai') userStore.setOpponentInfo(toOpponentInfo(opponent))
@@ -115,8 +119,11 @@ export function useChallengePreparation({ matchId, prompt }: UseChallengePrepara
       roundStore.resetOpponentRoundList()
       revengeStore.clearRevengeInfo()
     } catch (error) {
-      reportError('useChallengePreparation', error)
-      globalStore.showError('Unable to prepare this match. Please return home and try again.')
+      await endGameWithError({
+        context: 'useChallengePreparation',
+        error,
+        message: 'Unable to prepare this match. Returning to the login screen.',
+      })
     }
   })
 

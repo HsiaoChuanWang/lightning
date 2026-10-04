@@ -4,9 +4,7 @@ import { findRound } from '@/services/roundService'
 import { useMatchStore } from '@/stores/match'
 import { useRoundStore } from '@/stores/round'
 import { useUserStore } from '@/stores/user'
-import { safeReplace } from '@/composables/usePageGuard'
-import { useGlobalStore } from '@/stores/global'
-import { reportError } from '@/utils/errors'
+import { endGameWithError } from '@/utils/gameFailure'
 import { storeToRefs } from 'pinia'
 import { v4 as uuidv4 } from 'uuid'
 import { onMounted, ref, watch } from 'vue'
@@ -24,7 +22,6 @@ export function useRoundPreparation({
   nextRound,
 }: UseRoundPreparationOptions) {
   const matchStore = useMatchStore()
-  const globalStore = useGlobalStore()
   const roundStore = useRoundStore()
   const userStore = useUserStore()
   const { delay, isActive } = useDisposableTimers()
@@ -130,17 +127,24 @@ export function useRoundPreparation({
   /** 準備目前頁面的對手資料；顯示階段與下一頁完全由後端 phase 決定。 */
   async function prepareRound() {
     if (!userInfo.value.userId) {
-      safeReplace(`/`)
+      await endGameWithError({
+        context: 'prepareRound',
+        error: new Error('找不到目前使用者資料'),
+        message: 'Unable to prepare the next round. Returning to the login screen.',
+      })
       return
     }
 
     try {
-      await waitForRounds()
+      const isReady = await waitForRounds()
+      if (!isReady && isActive()) throw new Error('等待回合資料逾時')
     } catch (error) {
       if (!isActive()) return
-      reportError('prepareRound', error)
-      globalStore.showError('Unable to prepare the next round. Please return home and try again.')
-      safeReplace(`/`)
+      await endGameWithError({
+        context: 'prepareRound',
+        error,
+        message: 'Unable to prepare the next round. Returning to the login screen.',
+      })
     }
   }
 

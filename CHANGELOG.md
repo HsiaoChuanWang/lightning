@@ -13,6 +13,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.7] - 2026-10-04
+
+### Added
+
+- Add opponent disconnect detection for human matches without affecting match records
+- Add a shared failure flow to abandon broken matches, show an error, and return to login
+
+### Fixed
+
+- Restore missing database users from their cached local UUID when logging in
+- Stop failed or abandoned games from continuing to later screens
+
+### Changed
+
+- Separate error logging from fatal game cleanup and retry temporary synchronization failures
+
 ## [0.16.6] - 2026-10-03
 
 ### Added
