@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.16.8] - 2026-10-04
+
+### Changed
+
+- Upgrade the Node.js runtime to 24.x for Vercel deployments
+
 ## [0.16.7] - 2026-10-04
 
 ### Added
