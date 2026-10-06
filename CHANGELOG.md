@@ -13,6 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.17.0] - 2026-10-06
+
+### Added
+
+- Add seven Playwright E2E flows:
+  - Winner invites the loser to a rematch and starts successfully
+  - Loser invites the winner to a rematch and starts successfully
+  - Tied player invites the opponent to a rematch and is rejected
+  - Opponent disconnects during round two and the online player returns to login
+  - Complete a five-round match against a Phantom opponent
+  - Complete a five-round match against an AI opponent with answer fallback
+  - Show an error modal and return to login when a flow fails
+- Add headed test instructions, two-player browser coverage, and observable interaction delays
+
+### Fixed
+
+- Prevent stale Presence events from falsely reporting an opponent disconnect
+- Ensure the current Round is stored and recover it from Supabase before submitting an answer
+
+### Changed
+
+- Limit Phantom candidates to completed matches while preserving played-match exclusion
+
 ## [0.16.8] - 2026-10-04
 
 ### Changed
