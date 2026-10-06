@@ -64,7 +64,7 @@ npx playwright show-report
 先關閉 Playwright UI，再使用有畫面的模式執行真人對戰測試：
 
 ```sh
-npx playwright test e2e/01-winner-rematch.spec.ts --project=chromium --headed
+npx playwright test 01-winner-rematch.spec.ts --project=chromium --headed
 ```
 
 這項測試會建立兩個獨立的 Chromium 瀏覽器環境。測試使用固定 UUID，因此重複執行時會沿用相同的測試帳號，不會持續新增使用者資料。兩個視窗可能彼此重疊，可以將它們排列在螢幕左右兩側，同時觀看兩位玩家完成同一場對戰。想觀看兩個實際瀏覽器視窗時，請勿加上 `--ui`。
@@ -76,7 +76,7 @@ npx playwright test e2e/01-winner-rematch.spec.ts --project=chromium --headed
 | `01-winner-rematch.spec.ts` | 真人完成五回合，贏家邀請輸家並成功再戰 |
 | `02-loser-rematch.spec.ts` | 真人完成五回合，輸家邀請贏家並成功再戰 |
 | `03-tie-reject-rematch.spec.ts` | 真人五回合平手，一方邀請且另一方拒絕再戰 |
-| `04-human-disconnect.spec.ts` | 真人回合中掉線，線上玩家收到 Modal 並回登入頁 |
+| `04-human-disconnect.spec.ts` | 真人完成第一回合後於第二回合掉線，線上玩家收到 Modal 並回登入頁 |
 | `05-phantom-match.spec.ts` | 匹配 Phantom 並完成五回合 |
 | `06-ai-match.spec.ts` | AI 描述 API 失敗時使用 Supabase 標準答案並完成五回合 |
 | `07-error-modal.spec.ts` | API 錯誤時顯示 Error Modal、返回登入頁並可關閉 Modal |
@@ -84,7 +84,7 @@ npx playwright test e2e/01-winner-rematch.spec.ts --project=chromium --headed
 只執行單一測試檔：
 
 ```sh
-npx playwright test e2e/02-loser-rematch.spec.ts --project=chromium --headed
+npx playwright test 02-loser-rematch.spec.ts --project=chromium --headed
 ```
 
 依序執行全部七種情境：
@@ -95,7 +95,9 @@ npx playwright test --project=chromium
 
 所有情境共用配對池與固定測試帳號，因此 Playwright 已設定為單一 worker，不可平行執行。完整套件包含多場五回合對戰，執行時間會較長。
 
-一般作答會在每回合隨機等待 1～9 秒後送出，模擬不同玩家的思考時間。平手測試的雙方會共用相同的隨機等待時間，避免時間獎勵意外改變勝負。
+一般作答會在每回合隨機等待 1～9 秒後送出，模擬不同玩家的思考時間。平手測試會固定雙方寫入的作答時間與 bonus，避免瀏覽器毫秒差改變勝負。
+
+掉線測試保留正式流程的 3 秒重新連線寬限；確認掉線後，Error Modal 會在測試中停留 2 秒，再按下 `OK` 顯示登入頁。
 
 Phantom 測試需要測試資料庫中存在可供重播的完整已完成對戰。AI 測試會模擬沒有可用 Phantom 候選，並強制圖片描述 API 失敗，驗證程式改用 Supabase 題庫中的標準答案後仍可完成五回合。
 

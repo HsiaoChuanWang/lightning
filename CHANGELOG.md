@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.17.1] - 2026-10-06
+
+### Changed
+
+- Update README with accurate E2E commands, timing, and disconnect behavior
+- Document the Playwright test structure, Round recovery, Phantom filtering, and Presence flow
+
 ## [0.17.0] - 2026-10-06
 
 ### Added
