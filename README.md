@@ -110,3 +110,18 @@ Phantom 測試需要測試資料庫中存在可供重播的完整已完成對戰
 ```sh
 npx playwright install
 ```
+
+### 真實 API Smoke Test
+
+一般 7 條 E2E 會控制 AI 回應，以穩定驗證遊戲流程。需要確認本機 API、Gemini 金鑰與真實服務串接時，另外執行：
+
+```sh
+npm run test:api
+```
+
+此指令會自動啟動本機 API server，並執行：
+
+- `/api/vectors`：確認回傳兩組有效且同維度的向量。
+- `/api/describe-image`：從 Supabase 題庫取得一張圖片，確認 Gemini 回傳非空描述。
+
+Smoke test 會實際使用 Gemini 額度與網路，不包含在一般 `npx playwright test` 中。

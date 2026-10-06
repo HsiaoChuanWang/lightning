@@ -19,6 +19,10 @@ Lightning/
 │  ├─ 07-error-modal.spec.ts
 │  └─ support/
 │     └─ game.ts                             # 玩家、配對、作答與共用等待 helper
+├─ smoke/
+│  └─ api/                                   # 真實 Gemini API smoke tests
+│     ├─ describe-image-api.spec.ts
+│     └─ vectors-api.spec.ts
 ├─ src/
 │  ├─ assets/                                # 圖片、圖示及全域樣式
 │  │  ├─ icons/
@@ -88,6 +92,7 @@ Lightning/
 ├─ CHANGELOG.md                              # 版本異動紀錄
 ├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
 ├─ playwright.config.ts                      # E2E 瀏覽器、worker 與開發伺服器設定
+├─ playwright.smoke.config.ts                # 真實 API smoke test 與本機 API server 設定
 ├─ README.md                                 # 安裝、開發與 E2E 執行說明
 ├─ env.d.ts
 ├─ index.html
@@ -101,6 +106,8 @@ Lightning/
 完整的登入配對、Match、回合、計分、結算、再戰及離開流程集中記錄於 [`GAME_FLOW.md`](./GAME_FLOW.md)。本文件負責說明程式碼結構與各層職責；流程或狀態改動時，應同步更新 `GAME_FLOW.md`。
 
 Playwright 使用七個獨立 spec 對應七種主要流程；共用的固定測試玩家、雙瀏覽器配對、隨機作答時間與操作停留集中於 `e2e/support/game.ts`。測試共用 Supabase 資料，因此設定為單一 worker 依序執行。
+
+`smoke/api/` 直接呼叫本機 API 與真實 Gemini，獨立使用 `playwright.smoke.config.ts`，不會隨一般 E2E 自動執行。
 
 ## 各層職責
 
