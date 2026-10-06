@@ -9,6 +9,16 @@ Lightning/
 │  └─ vectors.js
 ├─ server/                                   # 僅供本機開發使用的 API 伺服器
 │  └─ dev-server.js
+├─ e2e/                                      # Playwright 端對端測試
+│  ├─ 01-winner-rematch.spec.ts
+│  ├─ 02-loser-rematch.spec.ts
+│  ├─ 03-tie-reject-rematch.spec.ts
+│  ├─ 04-human-disconnect.spec.ts
+│  ├─ 05-phantom-match.spec.ts
+│  ├─ 06-ai-match.spec.ts
+│  ├─ 07-error-modal.spec.ts
+│  └─ support/
+│     └─ game.ts                             # 玩家、配對、作答與共用等待 helper
 ├─ src/
 │  ├─ assets/                                # 圖片、圖示及全域樣式
 │  │  ├─ icons/
@@ -75,7 +85,10 @@ Lightning/
 ├─ supabase/
 │  └─ migrations/                            # Match 後端狀態機、時間設定與 Cron
 ├─ .env.local
+├─ CHANGELOG.md                              # 版本異動紀錄
 ├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
+├─ playwright.config.ts                      # E2E 瀏覽器、worker 與開發伺服器設定
+├─ README.md                                 # 安裝、開發與 E2E 執行說明
 ├─ env.d.ts
 ├─ index.html
 ├─ package.json
@@ -86,6 +99,8 @@ Lightning/
 ## 流程與狀態文件
 
 完整的登入配對、Match、回合、計分、結算、再戰及離開流程集中記錄於 [`GAME_FLOW.md`](./GAME_FLOW.md)。本文件負責說明程式碼結構與各層職責；流程或狀態改動時，應同步更新 `GAME_FLOW.md`。
+
+Playwright 使用七個獨立 spec 對應七種主要流程；共用的固定測試玩家、雙瀏覽器配對、隨機作答時間與操作停留集中於 `e2e/support/game.ts`。測試共用 Supabase 資料，因此設定為單一 worker 依序執行。
 
 ## 各層職責
 

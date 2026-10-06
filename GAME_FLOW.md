@@ -82,7 +82,7 @@ stateDiagram-v2
 
 1. 真人 RPC 輪詢 `match_users`，最多 10 秒。
 2. `matches` Realtime INSERT；分別依 `player_one_id`、`player_two_id` 訂閱目前玩家。
-3. 真人搜尋逾時後，以最多 10 秒尋找已完成的歷史對局作為 Phantom。
+3. 真人搜尋逾時後，以最多 10 秒尋找 `status = completed` 的歷史對局作為 Phantom，並以玩過的 `matchId` 排除重複候選。
 4. 找不到 Phantom 時建立 AI 對手。
 
 所有來源最後都必須經過 `acceptMatch()`：
@@ -193,6 +193,8 @@ stateDiagram-v2
 | `phantom` | 後端建立自己的 Round，前端從歷史 Round 建立對手顯示資料 |
 | `ai` | 後端建立自己的 Round，前端建立 AI 顯示資料 |
 
+三種對手流程在確認自己的 Round 已建立後，都會將資料寫入 Round Store。提交答案時會依 `round` 編號尋找目前資料；若本地資料尚未同步完成，會再向 Supabase 補查，避免缺少 `roundId`。
+
 ## 5. 作答與 Round 結束
 
 `useRoundGameplay.ts` 管理倒數顯示、提交、對手提交與分數動畫；結果頁導覽由 Match phase 控制。
@@ -273,6 +275,8 @@ stateDiagram-v2
 - 程式內導航透過 `safePush()`／`safeReplace()` 取得一次性通行權。
 
 使用者確認離開時，`App.vue` 會依目前 Match 狀態執行放棄處理、關閉 Modal，並返回 `/`。繼續遊戲則只關閉 Modal。
+
+真人對戰使用 Supabase Presence 偵測掉線。新的 channel 必須先確認曾看過對手在線，才接受該對手的 `leave` 事件，避免舊工作階段的延遲事件造成誤判；對手離開後另有 3 秒重新連線寬限，仍未出現才中止比賽並顯示錯誤訊息。
 
 ## 9. 其他跨頁 Store 狀態
 
