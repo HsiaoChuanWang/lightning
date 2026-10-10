@@ -11,15 +11,25 @@
     "build": "run-p type-check \"build-only {@}\" --",
     "build-only": "vite build",
     "preview": "vite preview",
+    "test:api": "playwright test --config=playwright.smoke.config.ts",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
+    "lint:check": "eslint .",
     "format": "prettier --write src/",
-    "server": "node server/dev-server.js"
+    "prepare": "husky",
+    "server": "node server/dev-server.js",
+    "verify": "run-s lint:check type-check build-only"
+  },
+  "lint-staged": {
+    "*.{ts,mts,tsx,vue}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,scss}": "prettier --write"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.50.0",
-    "axios": "^1.6.8",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
@@ -29,6 +39,9 @@
     "vue-router": "^4.5.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@playwright/test": "^1.63.0",
     "@tsconfig/node22": "^22.0.1",
     "@types/node": "^22.14.0",
     "@vercel/node": "^5.3.11",
@@ -39,12 +52,13 @@
     "@vue/tsconfig": "^0.7.0",
     "eslint": "^9.22.0",
     "eslint-plugin-vue": "~10.0.0",
+    "husky": "^9.1.7",
     "jiti": "^2.4.2",
+    "lint-staged": "^17.6.0",
     "naive-ui": "^2.43.1",
     "npm-run-all2": "^7.0.2",
     "prettier": "3.5.3",
     "sass": "^1.93.2",
-    "ts-node": "^10.9.2",
     "typescript": "~5.8.0",
     "vite": "^6.2.4",
     "vite-plugin-vue-devtools": "^7.7.2",

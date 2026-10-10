@@ -22,6 +22,11 @@ app.use(express.json({ limit: '100kb' }))
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '')
 
+// 供本機工具與 API smoke test 確認伺服器已啟動，不呼叫任何外部服務。
+app.get('/health', (_req, res) => {
+  res.status(200).json({ status: 'ok' })
+})
+
 app.post('/api/describe-image', async (req, res) => {
   const { prompt, imageList } = req.body
 
