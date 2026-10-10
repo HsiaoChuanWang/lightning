@@ -13,7 +13,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.17.2] - 2026-10-10
+
+### Added
+
+- Add a non-mutating `lint:check` command for local and CI validation
+- Add Husky and lint-staged to run ESLint and Prettier on staged files before commits
+- Add commitlint rules for lowercase Conventional Commit types, required descriptions, and 100-character headers
+- Add pre-push lint, type-check, and production build verification without running E2E tests
+- Add GitHub Actions quality checks for pushes and pull requests
+
+### Changed
+
+- Document ESLint coverage, Git hook timing, commit message rules, and the E2E exclusion in README
+- Document Node.js, environment variable, Supabase migration, and two-server local development requirements
+- Correct the documented answer-preparation, rematch timeout, phase control, and Store cleanup flows
+- Update the project structure for shared API security, Git hooks, quality CI, and the current AI API service name
+
 ## [0.17.1] - 2026-10-06
+
+### Added
+
+- Add opt-in smoke tests for the real vectors and image description APIs
 
 ### Changed
 
