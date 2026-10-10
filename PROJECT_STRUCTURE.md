@@ -4,11 +4,20 @@
 
 ```text
 Lightning/
+├─ .github/
+│  └─ workflows/
+│     └─ quality.yml                         # Push／PR 的 lint、型別與 build 檢查
+├─ .husky/
+│  ├─ pre-commit                             # 對 staged files 執行 lint-staged
+│  ├─ commit-msg                             # 使用 commitlint 檢查提交訊息
+│  └─ pre-push                               # 執行完整 verify
 ├─ api/                                      # 部署至 Vercel 的 Serverless Functions
 │  ├─ describe-image.js
 │  └─ vectors.js
 ├─ server/                                   # 僅供本機開發使用的 API 伺服器
 │  └─ dev-server.js
+├─ shared/                                   # 本機與 Vercel API 共用的後端模組
+│  └─ secureImageFetch.js                    # 圖片來源、DNS、格式、大小與逾時驗證
 ├─ e2e/                                      # Playwright 端對端測試
 │  ├─ 01-winner-rematch.spec.ts
 │  ├─ 02-loser-rematch.spec.ts
@@ -90,6 +99,8 @@ Lightning/
 │  └─ migrations/                            # Match 後端狀態機、時間設定與 Cron
 ├─ .env.local
 ├─ CHANGELOG.md                              # 版本異動紀錄
+├─ commitlint.config.cjs                     # Conventional Commit 訊息規則
+├─ eslint.config.ts                          # Vue／TypeScript ESLint 規則
 ├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
 ├─ playwright.config.ts                      # E2E 瀏覽器、worker 與開發伺服器設定
 ├─ playwright.smoke.config.ts                # 真實 API smoke test 與本機 API server 設定
@@ -160,7 +171,7 @@ Service 不應控制 Vue template、Modal、Router，也不應管理 Vue Compone
 
 - `roundService.findRound()` 只負責從 Supabase 查詢指定回合。
 - `opponentMatchingService.matchHuman()` 呼叫配對 RPC 並回傳配對結果。
-- `scoringService.fetchVectors()` 呼叫向量評分 API。
+- `aiApiService.fetchVectors()` 呼叫向量評分 API。
 
 ### Mapper
 
@@ -252,16 +263,16 @@ Mapper / Supabase / Backend API
 
 命名以識別字在架構中的用途為準，不單純依 `const`、`let` 等宣告方式判斷。縮寫視為一般單字，例如 `userId`、`aiResponse`、`quizUrl`，不寫成 `userID`、`AIResponse`、`quizURL`。
 
-| 類型 | 規則 | 範例 |
-| --- | --- | --- |
-| Vue Component 與 Component 檔名 | PascalCase | `PlayerInfo`、`PlayerInfo.vue`、`GameResultView.vue` |
-| TypeScript interface、type、class | PascalCase | `Match`、`MatchStatus`、`RoundRealtimeRecord` |
-| 一般變數、參數與 function | camelCase | `matchId`、`currentRound`、`acceptMatch()` |
-| Composable | `use` + PascalCase | `useOpponentMatching()`、`usePageGuard()` |
-| 共享設定值與不變的業務常數 | UPPER_SNAKE_CASE | `TOTAL_ROUNDS`、`MATCH_SEARCH_TIMEOUT_MS` |
-| API、RPC、資料庫 Record 與後端 payload 欄位 | lower_snake_case | `match_id`、`player_one_id`、`submitted_at` |
-| CSS class、route path 與 HTML attribute | kebab-case | `player-card`、`start-challenge`、`aria-label` |
-| 一般 TypeScript／JavaScript 模組檔名 | camelCase | `matchService.ts`、`supabaseClient.ts` |
+| 類型                                        | 規則               | 範例                                                 |
+| ------------------------------------------- | ------------------ | ---------------------------------------------------- |
+| Vue Component 與 Component 檔名             | PascalCase         | `PlayerInfo`、`PlayerInfo.vue`、`GameResultView.vue` |
+| TypeScript interface、type、class           | PascalCase         | `Match`、`MatchStatus`、`RoundRealtimeRecord`        |
+| 一般變數、參數與 function                   | camelCase          | `matchId`、`currentRound`、`acceptMatch()`           |
+| Composable                                  | `use` + PascalCase | `useOpponentMatching()`、`usePageGuard()`            |
+| 共享設定值與不變的業務常數                  | UPPER_SNAKE_CASE   | `TOTAL_ROUNDS`、`MATCH_SEARCH_TIMEOUT_MS`            |
+| API、RPC、資料庫 Record 與後端 payload 欄位 | lower_snake_case   | `match_id`、`player_one_id`、`submitted_at`          |
+| CSS class、route path 與 HTML attribute     | kebab-case         | `player-card`、`start-challenge`、`aria-label`       |
+| 一般 TypeScript／JavaScript 模組檔名        | camelCase          | `matchService.ts`、`supabaseClient.ts`               |
 
 ### 常數與一般 `const` 的區分
 
@@ -313,3 +324,12 @@ Composable 內部也使用相同順序。若同類 lifecycle 之間存在執行�
 
 正式部署到 Vercel 後，由 Vercel 執行 `api/` 中的 Serverless Functions 並呼叫 Gemini API。
 本機開發時，`server/dev-server.js` 會啟動後端伺服器，接收 Vue 前端請求並呼叫 Gemini API。
+`shared/secureImageFetch.js` 由本機 server 與 Vercel 的圖片描述 API 共用，確保兩個環境採用相同的圖片下載安全限制。
+
+## 品質檢查
+
+- `.husky/pre-commit` 透過 lint-staged 對 staged files 執行 ESLint 與 Prettier。
+- `.husky/commit-msg` 透過 commitlint 檢查 Conventional Commit 格式。
+- `.husky/pre-push` 執行 `npm run verify`，依序檢查 lint、TypeScript 型別與正式建置。
+- `.github/workflows/quality.yml` 在 push 與 pull request 時執行相同的 `verify`。
+- Playwright E2E 不包含在上述 Git hooks 或品質 CI 中，需獨立執行。

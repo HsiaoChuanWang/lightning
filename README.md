@@ -8,15 +8,45 @@
 
 ## 安裝專案套件
 
+本專案使用 Node.js 24。安裝完成後，npm 會透過 `prepare` script 初始化 Husky：
+
 ```sh
 npm install
 ```
 
+## 環境設定
+
+在專案根目錄建立 `.env.local`：
+
+```env
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+- `VITE_SUPABASE_URL`：Supabase API、Storage 圖片網址與圖片來源驗證。
+- `VITE_SUPABASE_ANON_KEY`：前端、E2E 與 API smoke test 存取 Supabase。
+- `GEMINI_API_KEY`：本機 API server 呼叫 Gemini；正式部署時需在 Vercel 設定相同環境變數。
+
+使用新的 Supabase 專案時，需先套用 `supabase/migrations/` 中的 migration。該 migration 會建立遊戲流程需要的欄位、函式、`pg_cron` 排程與每秒推進 Match 的後端狀態機。Supabase 專案也必須允許應用程式使用的 Realtime 與 Presence。
+
 ## 啟動開發伺服器
+
+完整的本機開發需要兩個終端機。
+
+終端機 1：啟動本機 API server：
+
+```sh
+npm run server
+```
+
+終端機 2：啟動 Vite：
 
 ```sh
 npm run dev
 ```
+
+Vite 會將 `/api` 請求代理至 `http://localhost:3000`。如果只啟動 Vite，頁面仍可開啟，但圖片描述與向量評分 API 無法使用。
 
 ## 型別檢查與正式環境建置
 
@@ -44,6 +74,12 @@ ESLint 目前會檢查專案中的 `.ts`、`.mts`、`.tsx` 與 `.vue` 檔案，�
 - TypeScript Recommended 規則
 
 `dist/`、`dist-ssr/` 與 `coverage/` 產出目錄不會納入檢查。程式碼排版由 Prettier 分開處理，不屬於 ESLint 的檢查範圍。
+
+格式化 `src/`：
+
+```sh
+npm run format
+```
 
 ### Git 提交檢查
 
