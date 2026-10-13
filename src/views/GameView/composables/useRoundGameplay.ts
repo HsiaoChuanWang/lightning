@@ -173,7 +173,20 @@ export function useRoundGameplay({ currentRound, matchId }: UseRoundGameplayOpti
 
   async function updateMyRound(newScore: number) {
     try {
-      const roundId = myRoundList.value[currentRound - 1]?.roundId
+      let currentRoundData = myRoundList.value.find(
+        (roundData) => roundData.round === currentRound,
+      )
+
+      // Realtime 或頁面 hydrate 較晚時，直接向後端補查目前玩家的 Round。
+      if (!currentRoundData) {
+        currentRoundData =
+          (await findRound(matchId, userStore.userInfo.userId, currentRound)) ?? undefined
+        if (currentRoundData) roundStore.setMyRoundData(currentRoundData)
+      }
+
+      if (!currentRoundData) throw new Error(`找不到第 ${currentRound} 回合，無法提交答案`)
+
+      const roundId = currentRoundData.roundId
       const now = Date.now()
       const timeTakenMs = gameStartTime.value ? Math.max(now - gameStartTime.value, 0) : 0
       const submittedAt = new Date().toISOString()

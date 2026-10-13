@@ -13,6 +13,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.17.2] - 2026-10-10
+
+### Added
+
+- Add a non-mutating `lint:check` command for local and CI validation
+- Add Husky and lint-staged to run ESLint and Prettier on staged files before commits
+- Add commitlint rules for lowercase Conventional Commit types, required descriptions, and 100-character headers
+- Add pre-push lint, type-check, and production build verification without running E2E tests
+- Add GitHub Actions quality checks for pushes and pull requests
+
+### Changed
+
+- Document ESLint coverage, Git hook timing, commit message rules, and the E2E exclusion in README
+- Document Node.js, environment variable, Supabase migration, and two-server local development requirements
+- Correct the documented answer-preparation, rematch timeout, phase control, and Store cleanup flows
+- Update the project structure for shared API security, Git hooks, quality CI, and the current AI API service name
+
+## [0.17.1] - 2026-10-06
+
+### Added
+
+- Add opt-in smoke tests for the real vectors and image description APIs
+
+### Changed
+
+- Update README with accurate E2E commands, timing, and disconnect behavior
+- Document the Playwright test structure, Round recovery, Phantom filtering, and Presence flow
+
+## [0.17.0] - 2026-10-06
+
+### Added
+
+- Add seven Playwright E2E flows:
+  - Winner invites the loser to a rematch and starts successfully
+  - Loser invites the winner to a rematch and starts successfully
+  - Tied player invites the opponent to a rematch and is rejected
+  - Opponent disconnects during round two and the online player returns to login
+  - Complete a five-round match against a Phantom opponent
+  - Complete a five-round match against an AI opponent with answer fallback
+  - Show an error modal and return to login when a flow fails
+- Add headed test instructions, two-player browser coverage, and observable interaction delays
+
+### Fixed
+
+- Prevent stale Presence events from falsely reporting an opponent disconnect
+- Ensure the current Round is stored and recover it from Supabase before submitting an answer
+
+### Changed
+
+- Limit Phantom candidates to completed matches while preserving played-match exclusion
+
 ## [0.16.8] - 2026-10-04
 
 ### Changed

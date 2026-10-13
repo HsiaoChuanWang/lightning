@@ -46,6 +46,7 @@ export function useRoundPreparation({
       if (!isActive()) return false
 
       if (myRound && opponentRound) {
+        if (!hasMyRound) roundStore.setMyRoundData(myRound)
         if (!hasOpponentRound) roundStore.setOpponentRoundData(opponentRound)
         return true
       }
@@ -65,6 +66,7 @@ export function useRoundPreparation({
       if (!isActive()) return false
 
       if (myRound) {
+        roundStore.setMyRoundData(myRound)
         const phantomData = phantomRoundList.value[currentRound]
         roundStore.setOpponentRoundData({
           roundId: phantomData.roundId,
@@ -94,6 +96,7 @@ export function useRoundPreparation({
       if (!isActive()) return false
 
       if (myRound) {
+        roundStore.setMyRoundData(myRound)
         roundStore.setOpponentRoundData({
           roundId: uuidv4(),
           round: nextRound,

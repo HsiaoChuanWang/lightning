@@ -51,6 +51,7 @@ export function useMatchFlowSync() {
   let expiredPhaseRetryCount = 0
   let synchronizationFailureCount = 0
   let opponentLeaveTimer: ReturnType<typeof setTimeout> | null = null
+  let hasSeenOpponentPresent = false
 
   function cancelPhaseCheck() {
     if (phaseCheckTimer === null) return
@@ -63,6 +64,7 @@ export function useMatchFlowSync() {
     cancelPhaseCheck()
     if (opponentLeaveTimer !== null) clearTimeout(opponentLeaveTimer)
     opponentLeaveTimer = null
+    hasSeenOpponentPresent = false
     lastPhaseKey = ''
     expiredPhaseRetryCount = 0
 
@@ -225,6 +227,12 @@ export function useMatchFlowSync() {
     unsubscribeCurrentMatch()
 
     const myUserId = userStore.myCurrentId || userStore.userInfo.userId
+    const getOpponentId = () => {
+      const currentMatch = matchStore.matchData
+      return currentMatch.playerOneId === myUserId
+        ? currentMatch.playerTwoId
+        : currentMatch.playerOneId
+    }
     channel = supabase
       .channel(`match-flow-${matchId}`, { config: { presence: { key: myUserId } } })
       .on(
@@ -246,6 +254,13 @@ export function useMatchFlowSync() {
           })
         },
       )
+      .on('presence', { event: 'sync' }, () => {
+        if (!channel || matchStore.matchData.opponentType !== 'human') return
+        const opponentId = getOpponentId()
+        hasSeenOpponentPresent = Object.values(channel.presenceState())
+          .flat()
+          .some((presence) => (presence as { user_id?: string }).user_id === opponentId)
+      })
       .on('presence', { event: 'leave' }, ({ leftPresences }) => {
         const currentMatch = matchStore.matchData
         if (
@@ -255,14 +270,12 @@ export function useMatchFlowSync() {
         )
           return
 
-        const opponentId =
-          currentMatch.playerOneId === myUserId
-            ? currentMatch.playerTwoId
-            : currentMatch.playerOneId
+        const opponentId = getOpponentId()
         const opponentLeft = leftPresences.some(
           (presence) => (presence as { user_id?: string }).user_id === opponentId,
         )
-        if (!opponentLeft) return
+        // 忽略上一個瀏覽器工作階段延遲送達的 leave；本次 channel 必須曾看過對手在線。
+        if (!opponentLeft || !hasSeenOpponentPresent) return
 
         if (opponentLeaveTimer !== null) clearTimeout(opponentLeaveTimer)
         opponentLeaveTimer = setTimeout(() => {

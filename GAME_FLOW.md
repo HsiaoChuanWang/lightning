@@ -6,15 +6,15 @@
 
 專案中有多種名稱相近、但生命週期不同的狀態，不應互相取代。
 
-| 狀態 | 所在位置 | 生命週期與用途 |
-| --- | --- | --- |
-| `matchingState` | `useOpponentMatching.ts` | 單次「尋找對手」操作的暫時狀態，僅存在 Login 頁面 |
-| `matchData.status` | `stores/match.ts` | 已建立 Match 的業務狀態，可跨頁面使用並同步至資料庫 |
-| `matchData.phase` | `stores/match.ts` | Supabase 控制的遊戲階段，前端只能讀取並依此顯示或導頁 |
-| `isMatchCanceled` | `stores/match.ts` | Loading Modal 發出的配對取消訊號 |
-| Round fields | `stores/round.ts` | 每回合建立、作答、分數及提交時間 |
-| `revengeInfo.status` | `stores/revenge.ts` | 再戰邀請的狀態 |
-| Modal booleans | `stores/global.ts` | Loading、再戰及返回首頁 Modal 的顯示狀態 |
+| 狀態                 | 所在位置                 | 生命週期與用途                                                    |
+| -------------------- | ------------------------ | ----------------------------------------------------------------- |
+| `matchingState`      | `useOpponentMatching.ts` | 單次「尋找對手」操作的暫時狀態，僅存在 Login 頁面                 |
+| `matchData.status`   | `stores/match.ts`        | 已建立 Match 的業務狀態，可跨頁面使用並同步至資料庫               |
+| `matchData.phase`    | `stores/match.ts`        | Supabase 狀態機控制的遊戲階段；一般前端流程只讀取並依此顯示或導頁 |
+| `isMatchCanceled`    | `stores/match.ts`        | Loading Modal 發出的配對取消訊號                                  |
+| Round fields         | `stores/round.ts`        | 每回合建立、作答、分數及提交時間                                  |
+| `revengeInfo.status` | `stores/revenge.ts`      | 再戰邀請的狀態                                                    |
+| Modal booleans       | `stores/global.ts`       | Loading、再戰及返回首頁 Modal 的顯示狀態                          |
 
 `matchingState = matched` 表示本次搜尋已接受一個結果；`matchData.status = matched` 表示資料庫中的 Match 已建立且等待開始。兩者語意與生命週期不同。
 
@@ -82,7 +82,7 @@ stateDiagram-v2
 
 1. 真人 RPC 輪詢 `match_users`，最多 10 秒。
 2. `matches` Realtime INSERT；分別依 `player_one_id`、`player_two_id` 訂閱目前玩家。
-3. 真人搜尋逾時後，以最多 10 秒尋找已完成的歷史對局作為 Phantom。
+3. 真人搜尋逾時後，以最多 10 秒尋找 `status = completed` 的歷史對局作為 Phantom，並以玩過的 `matchId` 排除重複候選。
 4. 找不到 Phantom 時建立 AI 對手。
 
 所有來源最後都必須經過 `acceptMatch()`：
@@ -149,7 +149,7 @@ entry_banner
 `entry_banner` 為 3.6 秒。進入 `start_challenge` 後，先顯示自己的玩家 Banner，
 再顯示對手的玩家 Banner；對手 Banner 完整出現後停留 3 秒，才進入下一頁。
 
-進入 `answer_preparing` 後會先 render Game；連續完成兩個 animation frame 後，前端只呼叫一次 `start_answering_after_render()`，由資料庫當下時間開始完整 10 秒 `answering`。若瀏覽器沒有執行，Cron 仍會在準備期限後自動開始，不會阻擋整場流程。
+進入 `answer_preparing` 後會先 render Game；連續完成兩個 animation frame 後，前端只呼叫一次受限的 `start_answering_after_render()` RPC，請求後端切換至 `answering`。前端顯示完整 10 秒倒數，資料庫的 `answering` phase 為 11 秒，其中 1 秒保留給 RPC、網路與提交延遲。若瀏覽器沒有執行 RPC，Cron 仍會在準備期限後自動開始，不會阻擋整場流程。前端不會直接寫入 phase。
 
 `useMatchFlowSync.ts` 只訂閱和讀取 Match，不呼叫 `advance_match_flow()`。遺漏 Realtime 時會在 deadline 後最多低頻重讀三次，並在分頁恢復可見時同步，避免形成無限 API 請求。
 
@@ -162,11 +162,12 @@ flowchart TD
     Start[進入 StartChallengeView] --> Users[載入雙方 User]
     Users --> Quiz[依 quizSetId 載入題目]
     Quiz --> Type{Opponent Type}
-    Type -->|human 或 phantom| Reset[清空前一場 Round 與 Revenge]
-    Type -->|ai| Images[呼叫 describe-image 產生 AI 答案]
-    Images -->|成功| Reset
-    Images -->|失敗| Fallback[使用 preparedAiAnswer]
+    Type -->|human 或 phantom| Preload[預載所有題目圖片]
+    Type -->|ai| AiPrepare[並行預載圖片與呼叫 describe-image]
+    AiPrepare -->|API 成功| Reset[清空前一場 Round 與 Revenge]
+    AiPrepare -->|API 失敗| Fallback[使用 preparedAiAnswer]
     Fallback --> Reset
+    Preload --> Reset
     Reset --> Wait[等待後端 phase]
     Wait -->|phase = round_intro| RoundStart[前往 RoundStartView]
 ```
@@ -181,17 +182,20 @@ AI 對手不從 users table 讀取，而是在前端建立顯示用的 opponent 
 stateDiagram-v2
     [*] --> roundTitle
     roundTitle --> questionPreview: phase = question_preview
-    questionPreview --> answering: phase = answering
-    answering --> [*]: 前往 GameView
+    questionPreview --> answerPreparing: phase = answer_preparing，前往 GameView
+    answerPreparing --> answering: Game render 後由受限 RPC 啟動，或由 Cron 推進
+    answering --> [*]: GameView 開始作答倒數
 ```
 
 不同對手的就緒條件：
 
-| 對手類型 | Round 準備方式 |
-| --- | --- |
-| `human` | 後端同時建立雙方 Round；前端讀取兩筆資料 |
+| 對手類型  | Round 準備方式                                          |
+| --------- | ------------------------------------------------------- |
+| `human`   | 後端同時建立雙方 Round；前端讀取兩筆資料                |
 | `phantom` | 後端建立自己的 Round，前端從歷史 Round 建立對手顯示資料 |
-| `ai` | 後端建立自己的 Round，前端建立 AI 顯示資料 |
+| `ai`      | 後端建立自己的 Round，前端建立 AI 顯示資料              |
+
+三種對手流程在確認自己的 Round 已建立後，都會將資料寫入 Round Store。提交答案時會依 `round` 編號尋找目前資料；若本地資料尚未同步完成，會再向 Supabase 補查，避免缺少 `roundId`。
 
 ## 5. 作答與 Round 結束
 
@@ -243,7 +247,7 @@ flowchart TD
 再戰只在 Human Match 顯示。狀態型別為：
 
 ```ts
-type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled'
+type RevengeStatus = 'pending' | 'matched' | 'rejected' | 'canceled' | 'unavailable'
 ```
 
 ```mermaid
@@ -252,9 +256,11 @@ stateDiagram-v2
     pending --> matched: 另一方接受或雙方同時邀請
     pending --> rejected: 受邀方拒絕
     pending --> canceled: 邀請方取消
+    pending --> unavailable: 五秒內沒有收到回覆
     matched --> [*]: 建立新 Match 並前往 StartChallengeView
     rejected --> [*]: 關閉 Modal 並返回首頁
     canceled --> [*]: 關閉 Modal 並返回首頁
+    unavailable --> [*]: 顯示逾時結果後返回首頁
 ```
 
 `useRevengeRealtime.ts` 依原 `match_id` 監聽 `revenge_requests` 的 INSERT 與 UPDATE：
@@ -262,6 +268,7 @@ stateDiagram-v2
 - `pending`：開啟 Play Again Modal。
 - `matched`：以 `revenge_id` 作為新 Match ID，進入新的 Start Challenge。
 - `rejected`／`canceled`：關閉 Modal 並返回首頁。
+- `unavailable`：邀請送出後 5 秒仍為 `pending`，本地顯示對手無法再戰，資料庫狀態改為 `canceled`，2 秒後返回首頁。
 
 ## 8. 離開、重整與返回首頁
 
@@ -274,21 +281,23 @@ stateDiagram-v2
 
 使用者確認離開時，`App.vue` 會依目前 Match 狀態執行放棄處理、關閉 Modal，並返回 `/`。繼續遊戲則只關閉 Modal。
 
+真人對戰使用 Supabase Presence 偵測掉線。新的 channel 必須先確認曾看過對手在線，才接受該對手的 `leave` 事件，避免舊工作階段的延遲事件造成誤判；對手離開後另有 3 秒重新連線寬限，仍未出現才中止比賽並顯示錯誤訊息。
+
 ## 9. 其他跨頁 Store 狀態
 
 以下資料不是獨立的列舉狀態機，但會隨主流程建立、更新或清除。
 
-| Store 狀態 | 建立或更新時機 | 清除時機 |
-| --- | --- | --- |
-| `userInfo` | Start Challenge 載入目前玩家資料 | 新配對開始時重設；確認返回首頁時清除 |
-| `opponentInfo` | Start Challenge 載入真人／Phantom，或建立 AI 顯示資料 | 新配對開始時重設 |
-| `myCurrentId` | Login 初始化或讀取本機使用者後 | User store 完整清除時 |
-| `quizList` | Start Challenge 依 `quizSetId` 載入 | 新配對開始時清除 |
-| `myRoundList` | 每次 Round Start 建立自己的 Round | 新 Match 的 Start Challenge 或新配對開始時清除 |
-| `opponentRoundList` | Round Start 建立初始資料；Game 中由 Realtime 或模擬對手更新 | 新 Match 的 Start Challenge 或新配對開始時清除 |
-| `phantomRoundList` | 配對階段選到 Phantom 時載入歷史回合 | 下一次 Phantom 配對時覆寫 |
-| `aiResponseList` | Start Challenge 呼叫圖片描述 API 或採用 fallback 答案 | 下一次 AI Match 時覆寫 |
-| `isWin` | 最後一回合正常結算時設定 | 下一場結算時覆寫 |
+| Store 狀態          | 建立或更新時機                                              | 清除時機                                                               |
+| ------------------- | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
+| `userInfo`          | Login 初始化使用者，Start Challenge 再從資料庫載入          | 新配對開始時先重設再恢復；遊戲中確認放棄時清除；正常結算返回首頁時保留 |
+| `opponentInfo`      | Start Challenge 載入真人／Phantom，或建立 AI 顯示資料       | 新配對開始時重設                                                       |
+| `myCurrentId`       | Login 初始化或讀取本機使用者後                              | User store 完整清除時                                                  |
+| `quizList`          | Start Challenge 依 `quizSetId` 載入                         | 新配對開始時清除                                                       |
+| `myRoundList`       | 每次 Round Start 建立自己的 Round                           | 新 Match 的 Start Challenge 或新配對開始時清除                         |
+| `opponentRoundList` | Round Start 建立初始資料；Game 中由 Realtime 或模擬對手更新 | 新 Match 的 Start Challenge 或新配對開始時清除                         |
+| `phantomRoundList`  | 配對階段選到 Phantom 時載入歷史回合                         | 下一次 Phantom 配對時覆寫                                              |
+| `aiResponseList`    | Start Challenge 呼叫圖片描述 API 或採用 fallback 答案       | 下一次 AI Match 時覆寫                                                 |
+| `isWin`             | 進入 `game_result` 時依 `winner_id` 設定                    | 正常返回首頁時清除；下一場結算時重新設定                               |
 
 ### Global Modal 狀態
 

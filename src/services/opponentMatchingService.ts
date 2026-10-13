@@ -83,6 +83,7 @@ export async function findPhantomCandidate(userId: string): Promise<PhantomCandi
     .from('matches')
     .select('player_one_id, quiz_set_id, match_id')
     .eq('is_player_one_complete', true)
+    .eq('status', 'completed')
     .neq('player_one_id', userId)
 
   if (playedMatchIds.length === 1) query = query.neq('match_id', playedMatchIds[0])
