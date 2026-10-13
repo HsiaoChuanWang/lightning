@@ -13,6 +13,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.17.3] - 2026-10-14
+
+### Added
+
+- Add a project command reference covering development, validation, testing, Git hooks, and deployment workflows
+- Add a project testing guide covering test layers, Playwright setup, E2E scenarios, smoke tests, and troubleshooting
+
 ## [0.17.2] - 2026-10-10
 
 ### Added
