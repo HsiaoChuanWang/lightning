@@ -4,7 +4,7 @@
 
 本專案目前沒有 unit test，主要使用 Playwright 驗證完整遊戲流程與真實 API 串接：
 
-- `e2e/`：瀏覽器端對端測試，共 7 個遊戲情境。
+- `e2e/`：瀏覽器端對端測試，共 7 個遊戲情境；預設分別在 Chromium、Firefox、WebKit 執行，因此測試清單共有 21 個項目。
 - `smoke/api/`：真實 API smoke tests，共 2 個 API 情境。
 - `playwright.config.ts`：一般 E2E 設定。
 - `playwright.smoke.config.ts`：API smoke test 設定。
@@ -23,6 +23,12 @@ npm install
 
 ```sh
 npx playwright install
+```
+
+Linux 或乾淨的 CI 環境若也缺少瀏覽器系統相依套件，可使用：
+
+```sh
+npx playwright install --with-deps
 ```
 
 在專案根目錄建立 `.env.local`：
@@ -68,6 +74,12 @@ npx playwright test --project=chromium
 ```
 
 日常開發建議先使用 Chromium；需要確認跨瀏覽器相容性時，再執行完整的三種瀏覽器測試。
+
+只確認 Playwright 是否正確收集到測試、不實際執行：
+
+```sh
+npx playwright test --list
+```
 
 ### 執行單一測試
 
@@ -192,6 +204,15 @@ API smoke tests 位於 `smoke/api/`，使用獨立的 `playwright.smoke.config.t
 
 ```sh
 npm run test:api
+```
+
+這是目前唯一寫在 `package.json` 的測試 script；它不會執行一般 E2E。一般 E2E 請直接使用 `npx playwright test`。
+
+只執行單一 API smoke test：
+
+```sh
+npm run test:api -- vectors-api.spec.ts
+npm run test:api -- describe-image-api.spec.ts
 ```
 
 Playwright 會自動執行 `npm run server`，等待 `http://localhost:3000/health` 可用，再開始測試，因此不需要預先啟動 API server。

@@ -49,6 +49,7 @@ Lightning/
 │  │  ├─ game.ts                             # 回合數、作答時間等遊戲設定
 │  │  └─ timing.ts                           # 動畫、輪詢與流程延遲時間
 │  ├─ layouts/                               # 版型
+│  │  └─ MainLayout.vue
 │  ├─ lib/                                   # 第三方服務初始化，例如 Supabase Client
 │  ├─ mappers/                               # Database Record 轉換成前端 Domain Model
 │  ├─ router/                                # Vue Router 設定
@@ -98,19 +99,32 @@ Lightning/
 ├─ supabase/
 │  └─ migrations/                            # Match 後端狀態機、時間設定與 Cron
 ├─ .env.local
+├─ .editorconfig                            # 編輯器共用格式設定
+├─ .gitattributes                           # Git 屬性與換行設定
+├─ .gitignore                               # Git 忽略清單
+├─ .prettierrc.json                         # Prettier 排版設定
 ├─ CHANGELOG.md                              # 版本異動紀錄
 ├─ commitlint.config.cjs                     # Conventional Commit 訊息規則
 ├─ eslint.config.ts                          # Vue／TypeScript ESLint 規則
 ├─ GAME_FLOW.md                              # 完整遊戲流程、狀態機與頁面導覽
+├─ PROJECT_COMMANDS.md                       # 安裝、開發、建置與常用指令
+├─ PROJECT_STRUCTURE.md                      # 本文件：目錄、分層與命名規則
+├─ PROJECT_TESTS.md                          # 測試情境與品質檢查說明
 ├─ playwright.config.ts                      # E2E 瀏覽器、worker 與開發伺服器設定
 ├─ playwright.smoke.config.ts                # 真實 API smoke test 與本機 API server 設定
 ├─ README.md                                 # 安裝、開發與 E2E 執行說明
 ├─ env.d.ts
 ├─ index.html
 ├─ package.json
+├─ package-lock.json                         # npm 鎖定版本
+├─ tsconfig.app.json                         # 前端 TypeScript 設定
+├─ tsconfig.json                             # TypeScript project references
+├─ tsconfig.node.json                        # Node／建置設定檔的 TypeScript 設定
 ├─ vite.config.ts
 └─ vercel.json
 ```
+
+`node_modules/`、`dist/`、`test-results/` 與 `playwright-report/` 是安裝、建置或測試時產生的目錄，因此未列入上述原始碼架構；其中後三者可直接刪除後重新產生。
 
 ## 流程與狀態文件
 
