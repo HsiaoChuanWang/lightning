@@ -142,6 +142,12 @@ npm run preview
 npx playwright install
 ```
 
+Linux 或乾淨的 CI 環境若尚未安裝瀏覽器所需的系統套件，可改用：
+
+```sh
+npx playwright install --with-deps
+```
+
 在 Chromium、Firefox 與 WebKit 執行所有 E2E 測試：
 
 ```sh
@@ -159,6 +165,9 @@ npx playwright test --ui
 
 # 只使用 Chromium
 npx playwright test --project=chromium
+
+# 列出設定實際收集到的測試，不執行測試
+npx playwright test --list
 
 # 執行單一測試情境
 npx playwright test 02-loser-rematch.spec.ts --project=chromium --headed
@@ -183,6 +192,15 @@ npm run test:api
 - `/api/describe-image` 是否能取得 Supabase 題庫圖片並由 Gemini 回傳描述。
 
 Smoke test 需要正確的 `.env.local`、網路連線及 Gemini 額度，不包含在一般 E2E 測試或 `npm run verify` 中。
+
+如需只執行其中一個 smoke test，可指定檔名：
+
+```sh
+npm run test:api -- vectors-api.spec.ts
+npm run test:api -- describe-image-api.spec.ts
+```
+
+專案目前沒有一般 E2E 專用的 npm script；一般 E2E 請使用 `npx playwright test`，`npm run test:api` 僅執行 `smoke/api/`。
 
 ## Git hooks
 
